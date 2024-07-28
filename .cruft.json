@@ -1,0 +1,21 @@
+{
+  "template": "https://github.com/cthoyt/cookiecutter-snekpack",
+  "commit": "f973cb05c148402eefde0077c5b88786a0cbab3c",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "package_name": "timsimaging",
+      "package_name_stylized": "TIMSImaging",
+      "short_description": "MALDI-TIMS-TOF raw data  visualization and preprocessing",
+      "author_name": "Yinyue Zhu",
+      "author_email": "zhuyy@gmail.com",
+      "github_organization_name": "Vitek-Lab",
+      "github_repository_name": "https://github.com/YinyueZhu/TIMSImaging",
+      "command_line_interface": false,
+      "gitlab": false,
+      "__gh_slug": "Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging",
+      "_template": "https://github.com/cthoyt/cookiecutter-snekpack"
+    }
+  },
+  "directory": null
+}

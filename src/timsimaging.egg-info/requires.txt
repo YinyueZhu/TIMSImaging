@@ -1,0 +1,16 @@
+more_itertools
+tqdm
+alphatims==1.0.8
+bokeh==3.4.0
+numpy==1.26.4
+pandas==2.2.1
+scipy==1.11.4
+
+[docs]
+sphinx
+sphinx-rtd-theme
+sphinx_automodapi
+
+[tests]
+pytest
+coverage

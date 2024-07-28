@@ -1,0 +1,16 @@
+LICENSE
+MANIFEST.in
+README.md
+pyproject.toml
+src/timsimaging/__init__.py
+src/timsimaging/plotting.py
+src/timsimaging/py.typed
+src/timsimaging/spectrum.py
+src/timsimaging/version.py
+src/timsimaging.egg-info/PKG-INFO
+src/timsimaging.egg-info/SOURCES.txt
+src/timsimaging.egg-info/dependency_links.txt
+src/timsimaging.egg-info/requires.txt
+src/timsimaging.egg-info/top_level.txt
+tests/__init__.py
+tests/test_version.py
