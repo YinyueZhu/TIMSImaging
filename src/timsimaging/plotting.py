@@ -26,10 +26,12 @@ from typing import Callable, TYPE_CHECKING, Tuple
 if TYPE_CHECKING:
     from .spectrum import IntensityArray, MSIDataset
 
-__all__ = ["image", "spectrum", "mobilogram", "heatmap", "heatmap_layouts", "dashboard"]
+__all__ = ["heatmap_layouts", "dashboard", "plot", "visualize"]
 
 
-def image(dataset: "MSIDataset", mz=None, mobility=None) -> Tuple[figure, ColumnDataSource]:
+def image(
+    dataset: "MSIDataset", mz=None, mobility=None
+) -> Tuple[figure, ColumnDataSource]:
     """Visualized the pixel grid of the dataset
 
     :param dataset: the dataset
@@ -111,6 +113,57 @@ def image(dataset: "MSIDataset", mz=None, mobility=None) -> Tuple[figure, Column
     return f, source
 
 
+def scatterplot(frame: "IntensityArray") -> Tuple[figure, ColumnDataSource]:
+    """Visualize a 2D spectogram
+
+    :param frame: the frame to visualize
+    :type frame: IntensityArray
+    :return: the 2D spectogram
+    :rtype: figure
+    """
+
+    df = frame.data
+    source = ColumnDataSource(df)
+    width, height = frame.resolution
+
+    f = figure(
+        title="2D Spectrogram",
+        x_range=(df["mz_values"].min(), df["mz_values"].max()),
+        y_range=(df["mobility_values"].min(), df["mobility_values"].max()),
+        toolbar_location="right",
+        background_fill_color="black",
+        aspect_ratio=1.1,
+        # height=600,
+        # sizing_mode="fixed",
+        match_aspect=True,
+    )
+
+    # the 2D spectrogram
+
+    cmap = log_cmap("intensity_values", palette="Plasma256", low=1, high=1000)
+
+    spec2d = f.scatter(
+        x="mz_values",
+        y="mobility_values",
+        color=cmap,
+        source=source,
+    )
+    color_bar = spec2d.construct_color_bar()
+    f.add_layout(color_bar, "right")
+
+    hover = HoverTool(
+        renderers=[spec2d],
+        tooltips=[
+            ("m/z", "@mz_values{0.0000}"),
+            ("1/K0", "@mobility_values{0.0000}"),
+            ("intensity", "@intensity_values"),
+            ("index", "$index"),
+        ],
+    )
+    f.add_tools(hover)
+    return f, source
+
+
 def heatmap(frame: "IntensityArray") -> Tuple[figure, ColumnDataSource]:
     """Visualize a 2D spectogram
 
@@ -139,7 +192,10 @@ def heatmap(frame: "IntensityArray") -> Tuple[figure, ColumnDataSource]:
     # the 2D spectrogram
 
     cmap = log_cmap(
-        "intensity_values", palette="Plasma256", low=1, high=df["intensity_values"].max()
+        "intensity_values",
+        palette="Plasma256",
+        low=1,
+        high=df["intensity_values"].max(),
     )
 
     spec2d = f.rect(
@@ -193,7 +249,9 @@ def spectrum(data: pd.DataFrame) -> Tuple[figure, ColumnDataSource]:
     return f, source
 
 
-def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, ColumnDataSource]:
+def mobilogram(
+    data: pd.DataFrame, transposed: bool = False
+) -> Tuple[figure, ColumnDataSource]:
     source = ColumnDataSource(data)
     if transposed:
         f = figure(
@@ -237,6 +295,13 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
     return f, source
 
 
+# def bkapp(func): # function a Bokeh app
+#     def wrapper(doc: Document, *args, **kwargs):
+#         ui = func(*args, **kwargs)
+#         doc.add_root(ui)
+#     return wrapper
+
+
 # make a function a Bokeh application
 def bkapp(func):
     def wrapper(*args, **kwargs):
@@ -272,6 +337,14 @@ def heatmap_layouts(
 
     heatmap_figure, heatmap_source = heatmap(frame)
 
+    # show/hide grid lines
+    def show_grid_line(attr, old, new):
+        heatmap_figure.xgrid.visible = new
+        heatmap_figure.ygrid.visible = new
+
+    grid_checkbox = Checkbox(label="Show grid lines", active=True)
+    grid_checkbox.on_change("active", show_grid_line)
+
     # plot peak boxes
     # convert extents to location and size
     peak_rect_data = pd.DataFrame()
@@ -286,7 +359,9 @@ def heatmap_layouts(
         peak_extents["mz_values", "max"] - peak_extents["mz_values", "min"] + width
     )
     peak_rect_data["height"] = (
-        peak_extents["mobility_values", "max"] - peak_extents["mobility_values", "min"] + height
+        peak_extents["mobility_values", "max"]
+        - peak_extents["mobility_values", "min"]
+        + height
     )
     peak_rect_source = ColumnDataSource(peak_rect_data)
     peak_boxes = heatmap_figure.rect(
@@ -368,9 +443,13 @@ def heatmap_layouts(
             ),
         ]
 
-        spec1d_source.data = df_view.groupby("mz_values")["intensity_values"].sum().reset_index()
+        spec1d_source.data = (
+            df_view.groupby("mz_values")["intensity_values"].sum().reset_index()
+        )
 
-        mob_source.data = df_view.groupby("mobility_values")["intensity_values"].sum().reset_index()
+        mob_source.data = (
+            df_view.groupby("mobility_values")["intensity_values"].sum().reset_index()
+        )
         range_div.text = f"""
                             <h3>x_range: {heatmap_figure.x_range.start: .4f}-{heatmap_figure.x_range.end: .4f}</h3>
                             <h3>y_range: {heatmap_figure.y_range.start: .4f}-{heatmap_figure.y_range.end: .4f}</h3>
@@ -384,10 +463,34 @@ def heatmap_layouts(
     heatmap_figure.y_range.on_change("start", range_callback)
     heatmap_figure.y_range.on_change("end", range_callback)
 
+    # axis_range_button = Button(label="show axis ranges")
+    # axis_range_button.js_on_click(
+    #     CustomJS(
+    #         args=dict(f=f1),
+    #         code="""
+    #                                         console.log(f.x_range.start)
+    #                                         console.log(f.x_range.end)""",
+    #     )
+    # )
+    # peak_table_source.selected.js_on_change("indices",
+    #                                       CustomJS(code='''
+    #                                       const idx = cb_obj.indices[0];
+    #                                       console.log(idx);
+    #                                       '''))
+    # peak_data = ColumnDataSource(self.peakPick())
+    # data_table = DataTable(source=source, columns=columns, width=400, height=280)
+
+    # heatmap_layouts = (
+    #     [f, column([peak_checkbox, peak_table]), axis_range_button],
+    #     sizing_mode="stretch_both",
+    # )
     layouts = grid(
         [
             [heatmap_figure, mob_figure],
-            [spec1d_figure, column([peak_checkbox, peak_table, range_div])],
+            [
+                spec1d_figure,
+                column([peak_checkbox, grid_checkbox, peak_table, range_div]),
+            ],
         ],
         sizing_mode="fixed",
     )
@@ -395,7 +498,10 @@ def heatmap_layouts(
 
 
 @bkapp
-def dashboard(dataset: "MSIDataset"):
+def dashboard(dataset: "MSIDataset", 
+              sampling_ratio=1.0,
+              intensity_threshold=0.05,
+              **kwargs):
     """The interactive visualization for a dataset
 
     :param doc:
@@ -404,16 +510,41 @@ def dashboard(dataset: "MSIDataset"):
     :type dataset: MSIDataset
     """
 
-    mean_spec = dataset.mean_spectra()
+    mean_spec = dataset.mean_spectra(sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold)
     width, height = mean_spec.resolution
+
     peak_list, group_labels, peak_extents = mean_spec.peakPick(
         return_labels=True,
         return_extents=True,
+        **kwargs,
     )
+
     # image(initially TIC)
     image_figure, image_source = image(dataset)
     # heatmap(initially mean spectrum)
     heatmap_figure, heatmap_source = heatmap(mean_spec)
+
+    def show_tic():
+        intensities = dataset.tic()
+        image_source.data["total_intensity"] = intensities
+        image_source.data["normalized"] = intensities / intensities.max()
+
+    tic_button = Button(label="Show TIC image", button_type="primary")
+    tic_button.on_click(show_tic)
+
+    def show_meanspec():
+        heatmap_source.data = mean_spec.data
+
+    meanspec_button = Button(label="Show mean spectrum", button_type="primary")
+    meanspec_button.on_click(show_meanspec)
+
+    # show/hide grid lines
+    def show_grid_line(attr, old, new):
+        heatmap_figure.xgrid.visible = new
+        heatmap_figure.ygrid.visible = new
+
+    grid_checkbox = Checkbox(label="Show grid lines", active=True)
+    grid_checkbox.on_change("active", show_grid_line)
 
     df = mean_spec.data
     spec1d_df = df.groupby("mz_values")["intensity_values"].sum().reset_index()
@@ -438,8 +569,12 @@ def dashboard(dataset: "MSIDataset"):
             selected_index = selected_indices[0]
             df = dataset[selected_index].data
             heatmap_source.data = df
-            spec1d_source.data = df.groupby("mz_values")["intensity_values"].sum().reset_index()
-            mob_source.data = df.groupby("mobility_values")["intensity_values"].sum().reset_index()
+            spec1d_source.data = (
+                df.groupby("mz_values")["intensity_values"].sum().reset_index()
+            )
+            mob_source.data = (
+                df.groupby("mobility_values")["intensity_values"].sum().reset_index()
+            )
             tap_div.text = f"Selected index: {selected_indices}"
         # only one pixel could be selected once
         if len(selected_indices) > 1:
@@ -460,7 +595,9 @@ def dashboard(dataset: "MSIDataset"):
         peak_extents["mz_values", "max"] - peak_extents["mz_values", "min"] + width
     )
     peak_rect_data["height"] = (
-        peak_extents["mobility_values", "max"] - peak_extents["mobility_values", "min"] + height
+        peak_extents["mobility_values", "max"]
+        - peak_extents["mobility_values", "min"]
+        + height
     )
 
     peak_rect_source = ColumnDataSource(peak_rect_data)
@@ -491,7 +628,7 @@ def dashboard(dataset: "MSIDataset"):
         heatmap_figure.y_range.start = y - 0.5 * h * 1.5
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
         # peak info
-        mz, mobility, intensity = peak_list.iloc[peak_idx]
+        mz, mobility = peak_list.iloc[peak_idx][["mz_values", "mobility_values"]]
         mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
 
         # pixel-wise intensity
@@ -515,9 +652,14 @@ def dashboard(dataset: "MSIDataset"):
         ),
         TableColumn(
             field="total_intensity",
-            title="peak volume",
+            title="total peak intensity",
             formatter=NumberFormatter(format="0.000"),
         ),
+        # TableColumn(
+        #     field="ccs_values",
+        #     title="collision cross section(CCS)",
+        #     formatter=NumberFormatter(format="0.000"),
+        # ),
     ]
 
     peak_table = DataTable(source=peak_table_source, columns=columns, width=580)
@@ -535,24 +677,52 @@ def dashboard(dataset: "MSIDataset"):
             ),
         ]
 
-        spec1d_source.data = df_view.groupby("mz_values")["intensity_values"].sum().reset_index()
+        spec1d_source.data = (
+            df_view.groupby("mz_values")["intensity_values"].sum().reset_index()
+        )
 
-        mob_source.data = df_view.groupby("mobility_values")["intensity_values"].sum().reset_index()
+        mob_source.data = (
+            df_view.groupby("mobility_values")["intensity_values"].sum().reset_index()
+        )
 
     heatmap_figure.x_range.on_change("start", range_callback)
     heatmap_figure.x_range.on_change("end", range_callback)
     heatmap_figure.y_range.on_change("start", range_callback)
     heatmap_figure.y_range.on_change("end", range_callback)
 
+    # compute CCS
+    ccs_button = Button(label="Compute CCS value", button_type="success")
+
+    def compute_ccs():
+        # already computed
+        if "ccs_values" in peak_table_source.data:
+            return
+        else:
+            calibrator = dataset.ccs_calibrator()
+            ccs_values = calibrator.transform(
+                peak_list["mz_values"], peak_list["mobility_values"], charge=1
+            )
+            peak_list["ccs_values"] = ccs_values
+            peak_table_source.data["ccs_values"] = ccs_values
+            peak_table.columns.append(
+                TableColumn(
+                    field="ccs_values",
+                    title="CCS",
+                    formatter=NumberFormatter(format="0.000"),
+                ),
+            )
+
+    ccs_button.on_click(compute_ccs)
+
     # export peak list
     # TODO add more format options
-    button = Button(label="Export peak list", button_type="success")
+    export_button = Button(label="Export peak list", button_type="success")
 
     def export_csv():
         csv_data = peak_list.to_csv()
         # csv_data = csv_data.replace("\n", "\\n").replace("\r", "\\r").replace('"', '\\"')
         filename = "peak_list.csv"
-        button.js_on_click(
+        export_button.js_on_click(
             CustomJS(
                 args=dict(csv_data=csv_data, filename=filename),
                 code="""
@@ -580,40 +750,54 @@ def dashboard(dataset: "MSIDataset"):
         )
 
     # Assign the Python callback to the button
-    button.on_click(export_csv)
-    # button.js_on_click()
+    export_button.on_click(export_csv)
 
     layouts = grid(
         [
             [image_figure, heatmap_figure, mob_figure],
-            [peak_table, spec1d_figure, column(peak_checkbox, button)],
+            [
+                peak_table,
+                spec1d_figure,
+                column(peak_checkbox, grid_checkbox, tic_button, meanspec_button, ccs_button, export_button),
+            ],
         ],
         # sizing_mode="fixed",
     )
+    # layouts = row(
+    #     [
+    #         column(image_figure, peak_table),
+    #         column([heatmap_figure, spec1d_figure], sizing_mode="stretch_width"),
+    #         column(mob_figure, peak_checkbox, button),
+    #     ],
+    # )
+    # layouts = row([image_figure, heatmap_figure, column([peak_table, button])])
     return layouts
 
 
-# # wrapper functions for Jupyter Notebook use, because bokeh.io.show() accepcts callable with only one doc arg
-# def plot(frame: "IntensityArray", **kwargs) -> Callable[[Document], None]:
-#     """Plot a dashboard for a frame
-#     show(plot(<frame>, <params>), notebook_url=<...>)
-#     Any keyword arguments would be passed to peakPick()
-
-#     :param frame: the frame to visualize
-#     :type frame: IntensityArray
-#     :return: a closure function
-#     :rtype: Callable[[Document], None]
-#     """
-#     return lambda doc: (heatmap_layouts(doc, frame=frame, **kwargs))
+# sizing_mode="stretch_width"
 
 
-# def visualize(dataset: "MSIDataset") -> Callable[[Document], None]:
-#     """Plot a dashboard for a dataset
-#     show(visualize(<frame>, <params>), notebook_url=<...>)
+# wrapper functions for Jupyter Notebook use, because bokeh.io.show() accepcts callable with only one doc arg
+def plot(frame: "IntensityArray", **kwargs) -> Callable[[Document], None]:
+    """Plot a dashboard for a frame
+    show(plot(<frame>, <params>), notebook_url=<...>)
+    Any keyword arguments would be passed to peakPick()
 
-#     :param frame: the dataset to visualize
-#     :type frame: MSIDataset
-#     :return: a closure function
-#     :rtype: Callable[[Document], None]
-#     """
-#     return lambda doc: (dashboard(doc, dataset=dataset))
+    :param frame: the frame to visualize
+    :type frame: IntensityArray
+    :return: a closure function
+    :rtype: Callable[[Document], None]
+    """
+    return lambda doc: (heatmap_layouts(doc, frame=frame, **kwargs))
+
+
+def visualize(dataset: "MSIDataset") -> Callable[[Document], None]:
+    """Plot a dashboard for a dataset
+    show(visualize(<frame>, <params>), notebook_url=<...>)
+
+    :param frame: the dataset to visualize
+    :type frame: MSIDataset
+    :return: a closure function
+    :rtype: Callable[[Document], None]
+    """
+    return lambda doc: (dashboard(doc, dataset=dataset))

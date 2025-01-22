@@ -18,7 +18,7 @@ maintainers = [
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#classifiers
 # Search tags using the controlled vocabulary at https://pypi.org/classifiers
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 2 - Pre-Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -54,6 +54,7 @@ dependencies = [
     "numpy==1.26.4",
     "pandas==2.2.1",
     "scipy==1.11.4",
+    "pyimzml @ git+https://github.com/gtluu/pyimzML.git@fe24388984aa96a18ef2ed54927ec05d6701cc04"
 ]
 
 [project.optional-dependencies]

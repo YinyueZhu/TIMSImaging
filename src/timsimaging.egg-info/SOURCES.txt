@@ -3,9 +3,11 @@ MANIFEST.in
 README.md
 pyproject.toml
 src/timsimaging/__init__.py
+src/timsimaging/calibration.py
 src/timsimaging/plotting.py
 src/timsimaging/py.typed
 src/timsimaging/spectrum.py
+src/timsimaging/utils.py
 src/timsimaging/version.py
 src/timsimaging.egg-info/PKG-INFO
 src/timsimaging.egg-info/SOURCES.txt

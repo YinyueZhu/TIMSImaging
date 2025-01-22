@@ -1,9 +1,9 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: timsimaging
 Version: 0.0.1.dev0
 Summary: MALDI-TIMS-TOF raw data  visualization and preprocessing
-Author-email: Yinyue Zhu <zhuyy@gmail.com>
-Maintainer-email: Yinyue Zhu <zhuyy@gmail.com>
+Author-email: Yinyue Zhu <zhuyyx86@gmail.com>
+Maintainer-email: Yinyue Zhu <zhuyyx86@gmail.com>
 License: MIT License
         
         Copyright (c) 2024 Yinyue Zhu
@@ -31,7 +31,7 @@ Project-URL: Homepage, https://github.com/Vitek-Lab/https://github.com/YinyueZhu
 Project-URL: Repository, https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging.git
 Project-URL: Documentation, https://timsimaging.readthedocs.io
 Keywords: snekpack,cookiecutter
-Classifier: Development Status :: 1 - Planning
+Classifier: Development Status :: 2 - Pre-Alpha
 Classifier: Environment :: Console
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
@@ -55,6 +55,7 @@ Requires-Dist: bokeh==3.4.0
 Requires-Dist: numpy==1.26.4
 Requires-Dist: pandas==2.2.1
 Requires-Dist: scipy==1.11.4
+Requires-Dist: pyimzml@ git+https://github.com/gtluu/pyimzML.git@fe24388984aa96a18ef2ed54927ec05d6701cc04
 Provides-Extra: tests
 Requires-Dist: pytest; extra == "tests"
 Requires-Dist: coverage; extra == "tests"

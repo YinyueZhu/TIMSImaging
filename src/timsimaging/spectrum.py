@@ -1,23 +1,26 @@
 import alphatims.utils
 import alphatims.bruker
 
+import struct
 import numpy as np
 import pandas as pd
 import sqlite3
 import os
 
-from collections import deque
+from ripser import ripser
 from scipy.ndimage import maximum_filter, minimum_filter1d
-from scipy.spatial import KDTree
-from typing import List, Iterable, Literal
+from typing import List, Iterable, Literal, Dict
+from pyimzml.ImzMLWriter import ImzMLWriter
+from pyimzml.compression import NoCompression, ZlibCompression
+
 
 from bokeh.plotting import show
+from .utils import CoordsGraph
 from .plotting import spectrum, mobilogram, heatmap, image
-
-__all__ = ["MSIDataset", "IntensityArray"]
+__all__=["MSIDataset", "Frame", "export_imzML"]
 
 class MSIDataset:
-    """The class for a MSI dataset"""
+    """The class for a raw MSI dataset"""
 
     def __init__(self, path: str):
         """
@@ -28,77 +31,86 @@ class MSIDataset:
         self.data = alphatims.bruker.TimsTOF(path, use_hdf_if_available=False)
         # not inherit TimsTOF directly for future detachment
 
-        # read pixel coordinates
-        con = sqlite3.connect(os.path.join(path, "analysis.tdf"))
+        # parse .tdf SQL file
+        with sqlite3.connect(os.path.join(path, "analysis.tdf")) as con:
+            # read pixel coordinates
+            self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
+                ["Frame", "XIndexPos", "YIndexPos"]
+            ]
+            # imaging resolution in μm
+            img_res = pd.read_sql("SELECT * FROM MaldiFrameLaserInfo", con)["SpotSize"][0]
+            # mass and ion mobility calibration info
+            self.cali_info = pd.read_sql("SELECT * FROM CalibrationInfo", con).set_index("KeyName")
 
-        self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
-            ["Frame", "XIndexPos", "YIndexPos"]
-        ]
-        # imaging resolution in μm
-        img_res = pd.read_sql("SELECT * FROM MaldiFrameLaserInfo", con)["SpotSize"][0]
-        mz_res = (self.data.mz_max_value - self.data.mz_min_value) / len(
-            self.data.mz_values
-        )
+        mz_res = (self.data.mz_max_value - self.data.mz_min_value) / len(self.data.mz_values)
         mob_res = (self.data.mobility_max_value - self.data.mobility_min_value) / len(
             self.data.mobility_values
         )
-
-        # self.resolution = [mz_res, mob_res]
         self.resolution = {"xy": img_res, "mz": mz_res, "1/K0": mob_res}
+        # calibration info
 
     # get one frame
     def __getitem__(self, index):
-        return IntensityArray(self.data[index])
+        return Frame(self.data[index])
 
-    # get metadata
-    # def __getattribute__(self, name):
-    #     return self.data.__getattribute__(name)
+    def ccs_calibrator(self):
+        """Generate a CCS calibrater, mapping 1/K_0 -> CCS
 
-    def tic(self):
-        # issue: the ratio is right, abs value greater
+        :return: calibrator
+        :rtype: CCS_calibration
+        """
+        from .calibration import CCS_calibration
+
+        polarity = self.cali_info.loc[0, "KeyPolarity"]
+        # calibrants in chemical formula
+        calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
+        calibrants = calibrants.split("\x00")[:-1]
+        # x
+        raw_mob = struct.unpack(
+            f"{len(calibrants)}d",
+            self.cali_info.at["MobilitiesPreviousCalibration", "Value"],
+        )
+        # model x->y
+        calibrator = CCS_calibration(calibrants, raw_mob, polarity)
+        return calibrator
+
+    def tic(self) -> pd.Series:
+        # is already summarized in .tdf
         total_intensities = self.data.frames["SummedIntensities"][1:]
         return total_intensities
 
-    def mean_spectra(self, as_frame=False, intensity_threshold=0.05):
+    def mean_spectrum(
+        self,
+        frame_indices=None,
+        sampling_ratio: float = 1.0,
+        intensity_threshold: float = 0.05,
+        as_frame=False,
+    ):
         """compute mean spectra over the whole dataset
 
-        :param as_frame: if True, return a pd.DataFrame, otherwise an IntensityArray, defaults to False
+        :param as_frame: if True, return a pd.DataFrame, otherwise an Frame, defaults to False
         :type as_frame: bool, optional
         :param intensity_threshold: Filter out intensities that appear in little fraction of pixels, defaults to 0.05
         :type intensity_threshold: float, optional
         :return: _description_
         :rtype: _type_
         """
-        # intensities = pd.Series(
-        #     self.data.intensity_values,
-        #     name="intensity_values",
-        #     dtype=np.uint32,
-        # )  # np.ndarray[np.uint16]
-        # tof_indices = self.data.tof_indices  # np.ndarray[np.uint32]
-        # # decompress scan indeices in CSR format
-        # indptr = alphatims.bruker.indptr_lookup(
-        #     self.data.push_indptr, np.arange(len(self.data), dtype=np.uint32)
-        # )
-        # # frame_indices = indptr // self.data.scan_max_index
-        # scan_indices = (indptr % self.data.scan_max_index).astype(np.uint16)
 
-        # grouped = intensities.groupby([tof_indices, scan_indices], sort=False)
-        # mean_spec = grouped.sum(
-        #     engine="numba",
-        #     engine_kwargs={"nopython": True, "nogil": False, "parallel": False},
-        # ) / (self.data.frame_max_index - 1)
-        # # there's a dummy frame
-        # mean_spec.index.names = ["tof_indices", "scan_indices"]
-
-        sum_mx = self.data.bin_intensities(
-            np.arange(len(self.data)), axis=["mz_values", "mobility_values"]
-        )
-        if intensity_threshold is not None:
-            intensity_cut = (
-                self.data.intensity_min_value
-                * (self.data.frame_max_index - 1)
-                * intensity_threshold
+        if sampling_ratio == 1:
+            intensity_indices = np.arange(len(self.data))
+            n_frame = self.data.frame_max_index - 1
+        # randomly pick frames out of n
+        elif sampling_ratio < 1:
+            n_frame = int(self.data.frame_max_index * sampling_ratio)
+            frame_indices = np.random.choice(
+                np.arange(1, self.data.frame_max_index),
+                size=n_frame,
             )
+            intensity_indices = self.data[frame_indices, "raw"]
+
+        sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
+        if intensity_threshold is not None:
+            intensity_cut = self.data.intensity_min_value * n_frame * intensity_threshold
             tof_indices, scan_indices = np.nonzero(sum_mx > intensity_cut)
         else:
             tof_indices, scan_indices = sum_mx.nonzero()
@@ -107,8 +119,7 @@ class MSIDataset:
             {
                 "tof_indices": tof_indices,
                 "scan_indices": scan_indices,
-                "intensity_values": sum_mx[tof_indices, scan_indices]
-                / (self.data.frame_max_index - 1),
+                "intensity_values": sum_mx[tof_indices, scan_indices] / n_frame,
             }
         )
 
@@ -121,18 +132,55 @@ class MSIDataset:
         if as_frame:
             return mean_spec
         else:
-            return IntensityArray(
+            return Frame(
                 mean_spec,
                 mz_domain=self.data.mz_values,
                 mobility_domain=self.data.mobility_values,
             )
+
+    def process(self, sampling_ratio=0.1, intensity_threshold=0.05, **kwargs) -> Dict:
+        """Process the dataset to peak picked and aligned data cube
+
+        :param sampling_ratio: ratio for computing the mean spectrum, defaults to 0.1
+        :type sampling_ratio: float, optional
+        :param intensity_threshold: intensity threshold relative to lowest intensity in a single frame for filtering the mean spectrum, defaults to 0.05
+        :type intensity_threshold: float, optional
+        :return: a dictionary with intensity array, peak list and coordinates
+        :rtype: Dict
+        """
+        mean_spec = self.mean_spectrum(
+            sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold
+        )
+        peak_list, peak_extents = mean_spec.peakPick(return_extents=True, **kwargs)
+        n_peak = peak_list.shape[0]
+
+        # use dataframe for missing values
+        intensity_array = pd.DataFrame(
+            None,
+            index=range(1, self.data.frame_max_index),
+            columns=range(1, n_peak + 1),
+        )
+        for i in range(n_peak):
+            mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
+            # all data for i-th peak
+            image_data = self.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+            intensity_array[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
+
+        intensity_array.fillna(0.0, inplace=True)
+
+        results = {
+            "coords": self.pos,
+            "peak_list": peak_list,
+            "intensity_array": intensity_array,
+        }  # 3 dataframes
+        return results
 
     def image(self):
         f, _ = image(self)
         show(f)
 
 
-class IntensityArray:
+class Frame:
     """The class for a frame."""
 
     def __init__(
@@ -140,6 +188,7 @@ class IntensityArray:
         data: pd.DataFrame | pd.Series,
         mz_domain: np.ndarray | None = None,
         mobility_domain: np.ndarray | None = None,
+        coords: List[int] = None,
     ):
         """
 
@@ -181,9 +230,7 @@ class IntensityArray:
                         ]
                     )
                     if mz_domain is not None and mobility_domain is not None:
-                        self.data["tof_indices"] = np.searchsorted(
-                            mz_domain, data["mz_values"]
-                        )
+                        self.data["tof_indices"] = np.searchsorted(mz_domain, data["mz_values"])
                         self.data["scan_indices"] = np.searchsorted(
                             mobility_domain, data["mobility_values"]
                         )
@@ -203,13 +250,12 @@ class IntensityArray:
                     )
                     if mz_domain is not None and mobility_domain is not None:
                         self.data["mz_values"] = mz_domain[data["tof_indices"]]
-                        self.data["mobility_values"] = mobility_domain[
-                            data["scan_indices"]
-                        ]
+                        self.data["mobility_values"] = mobility_domain[data["scan_indices"]]
                         self.idx_available = True
                     else:
                         raise TypeError("Invalid domains")
 
+        self.coords = coords
         # compute resolution(minimium stride) in each dimension
         self.resolution = (
             self.data[["mz_values", "mobility_values"]]
@@ -229,13 +275,9 @@ class IntensityArray:
         :rtype: pd.Series
         """
         if use_index:
-            series = self.data.set_index(["tof_indices", "scan_indices"])[
-                "intensity_values"
-            ]
+            series = self.data.set_index(["tof_indices", "scan_indices"])["intensity_values"]
         else:
-            series = self.data.set_index(["mz_values", "mobility_values"])[
-                "intensity_values"
-            ]
+            series = self.data.set_index(["mz_values", "mobility_values"])["intensity_values"]
         if sort == True:
             series = series.groupby(series.index.names).sum()
         return series
@@ -246,8 +288,17 @@ class IntensityArray:
     def __len__(self):
         return self.data.shape[0]
 
-    def _build_graph(self, **kwargs):
-        return IntensityGraph(self, **kwargs)
+    @property
+    def mz(self):
+        return self.data["mz_values"].to_numpy()
+
+    @property
+    def mobility(self):
+        return self.data["mobility_values"].to_numpy()
+
+    @property
+    def intensity(self):
+        return self.data["intensity_values"].to_numpy()
 
     def peakPick(
         self,
@@ -280,9 +331,13 @@ class IntensityArray:
         :rtype: pd.DataFrame
         """
 
-        graph = self._build_graph(tolerance=tolerance, metric=metric)
+        if self.idx_available is True:
+            coords = self.data[["tof_indices", "scan_indices"]].to_numpy(
+                dtype=np.float64, copy=True
+            )
+        graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
         group_labels = graph.group_nodes(count_thrshold)  # ndarray of (k,)
-
+        # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
         )  # filter, then group
@@ -302,18 +357,14 @@ class IntensityArray:
             #     ),
             # )
             dense_mx.fillna(0, inplace=True)
-            maxima = maximum_filter(
-                dense_mx, size=window_size
-            )  # row index is y and col is x
+            maxima = maximum_filter(dense_mx, size=window_size)  # row index is y and col is x
             # find local maxima
             peaks = dense_mx.where((dense_mx == maxima) & dense_mx > 0).stack()
             if peaks.shape[0] > 1:  # isomers
                 peaks = peaks.reset_index()
                 # is mz resolvable?
                 # tof_indices are stored as unsigned integer
-                if (
-                    np.max(peaks["tof_indices"]) - np.min(peaks["tof_indices"])
-                ) <= tolerance:
+                if (np.max(peaks["tof_indices"]) - np.min(peaks["tof_indices"])) <= tolerance:
                     proj = np.sum(dense_mx, axis=1)
                     minima = minimum_filter1d(proj, size=17)
                     # , mode="constant", cval=0)
@@ -327,6 +378,7 @@ class IntensityArray:
                         ]
                         peak_labels[subgroup.index.to_numpy()] = current_group
                         current_group += 1
+                # separate peaks by mz values
                 else:
                     proj = np.sum(dense_mx, axis=0)
                     minima = minimum_filter1d(proj, size=5)
@@ -362,146 +414,92 @@ class IntensityArray:
             results += (peak_labels,)
         # include extents of each peak
         if return_extents is True:
-            peak_extents = peak_groups[["mz_values", "mobility_values"]].agg(
-                [np.min, np.max]
-            )
+            peak_extents = peak_groups[["mz_values", "mobility_values"]].agg(["min", "max"])
             results += (peak_extents,)
 
         return results
 
     # plotting methods
-    def spectrum(self):
+    def spectrum(self, plotting=True):
         data1d = self.data.groupby("mz_values")["intensity_values"].sum().reset_index()
-        f, _ = spectrum(data1d)
-        show(f)
+        if plotting is True:
+            f, _ = spectrum(data1d)
+            show(f)
+        else:
+            return data1d
 
-    def mobilogram(self):
-        data1d = (
-            self.data.groupby("mobility_values")["intensity_values"].sum().reset_index()
-        )
-        f, _ = mobilogram(data1d)
-        show(f)
+    def mobilogram(self, plotting=True):
+        data1d = self.data.groupby("mobility_values")["intensity_values"].sum().reset_index()
+        if plotting is True:
+            f, _ = mobilogram(data1d)
+            show(f)
+        else:
+            return data1d
 
-    def heatmap(self):
+    def heatmap(self, plotting=True):
         f, _ = heatmap(self)
         show(f)
 
+    def lower_star_filter(self):
+        pass
 
-class IntensityGraph:
-    """The class for clustering intensities, where nodes are intensities, edges(connectivity) are determined
-    by their distances in the (mz, mobility) space, then cluster them by connectivity.
-    """
 
-    def __init__(
-        self,
-        arr: IntensityArray,
-        tolerance: Iterable[int | float] | int | float | None = 2,
-        metric: Literal["euclidean", "chebyshev"] = "euclidean",
-    ):
-        """Build a graph from IntensityArray
 
-        :param arr: a frame to cluster
-        :type arr: IntensityArray
-        :param tolerance: Distance tolerances for connectivity at each dimension, defaults to 2
-        :type tolerance: Iterable[int  |  float] | int | float | None, optional
-        :param metric: distance metric, defaults to "euclidean"
-        :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        """
+def export_imzML(
+    dataset: MSIDataset,
+    path: str,
+    peaks: Dict = None,
+    mode="centroid",
+    imzml_mode="continuous",
+):
 
-        if arr.idx_available is True:
-            coords = arr.data[["tof_indices", "scan_indices"]].to_numpy(
-                dtype=np.float64, copy=True
-            )
-            # normalize coordinates, decision boundary ellipse->circle
-            if tolerance is not None:
-                coords /= tolerance
+    key_polarity = dataset.cali_info["KeyPolarity"].iloc[0]
+    if key_polarity == "+":
+        polarity = "positive"
+    elif key_polarity == "-":
+        polarity = "negative"
+    compression_object = NoCompression()
+    # create imzML and ibd files
+    writer = ImzMLWriter(
+        path,
+        polarity=polarity,
+        mode=imzml_mode,
+        spec_type=mode,
+        mz_dtype=np.float64,
+        intensity_dtype=np.float64,
+        mobility_dtype=np.float64,
+        mz_compression=compression_object,
+        intensity_compression=compression_object,
+        mobility_compression=compression_object,
+        include_mobility=True,
+    )
+    if peaks is None:
+        mean_spec = dataset.mean_spectra(intensity_threshold=0.05)
+        peak_list, peak_extents = mean_spec.peakPick(
+            return_extents=True,
+        )
+        # get peak picked frames
 
-        self.nodes = arr.data["intensity_values"]
+        intensity_arrays = pd.DataFrame(index=np.arange(1, dataset.data.frame_max_index))
+        # can I use pure Numpy here?
+        for i in range(peak_extents.shape[0]):
+            mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
+            # all data for i-th peak
+            image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+            intensity_arrays[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
+        intensity_array = intensity_arrays.copy().fillna(0)
 
-        tree = KDTree(coords)
-        # get the connection list, where i-th is a list of all neighbors represented in INDEX
-        if metric == "euclidean":
-            self.conn_list = tree.query_ball_point(coords, r=1, p=2.0)
+    else:
+        peak_list = peaks["peak_list"]
+        intensity_array = peaks["intensity_array"]
+    pos = dataset.pos.set_index("Frame")
 
-        elif metric == "chebyshev":  # rectangular window
-            self.conn_list = tree.query_ball_point(coords, r=1, p=np.inf)
-
-    def __len__(self):
-        return self.nodes.shape[0]
-
-    def _dfs(self, graph: set[int]) -> set[int]:
-        """Tranverse a graph from a start node using depth-first search,
-        return visited node indices
-
-        :param graph: a set of node indices
-        :type graph: set[int]
-        :return: the node set of a subgraph
-        :rtype: set[int]
-        """
-        # problem: larger radius make it much slower
-        start = graph.pop()  # graph is modified, bug-prone
-        stack = [start]
-        visited = set()
-        while stack:
-            node = stack.pop()
-            if node not in visited:
-                # there are repeated nodes in the stack if a cycle exists
-                visited.add(node)
-                appr = self.conn_list[node]
-                for i in appr:
-                    if i not in visited:
-                        stack.append(i)
-        return visited
-
-    # breath-first search
-    def _bfs(self, graph: set) -> set:
-        """Tranverse a graph from a start node using breadth-first search,
-        more efficient when node degree is higher
-
-        :param graph: a set of node indices
-        :type graph: set[int]
-        :return: the node set of a subgraph
-        :rtype: set[int]
-        """
-        start = graph.pop()
-        queue = deque([start])
-        visited = set()
-        while queue:
-            node = queue.popleft()
-            if node not in visited:
-                visited.add(node)
-                appr = self.conn_list[node]
-                for i in appr:
-                    if i not in visited:
-                        queue.append(i)
-        return visited
-
-    def group_nodes(self, count_thrshold=5, breadth_first=True) -> np.ndarray:
-        """Group nodes by connectivity
-
-        :param count_thrshold: groups smaller than the threshold would be ignored and labeled as group 0, defaults to 5
-        :type count_thrshold: int, optional
-        :return: an array of group labels
-        :rtype: np.ndarray
-        """
-        graph = set(np.arange(len(self)))
-        group_labels = np.zeros(len(self), dtype=int)
-        current_group = 1
-
-        if breadth_first:
-            search_func = self._bfs
-        else:
-            search_func = self._dfs
-        # grouped_coords = {}
-
-        while graph:
-            subgraph = search_func(graph)
-
-            graph -= subgraph
-
-            if len(subgraph) >= count_thrshold:  # filter out all fragments
-                # grouped_coords[current_group] = subgraph
-                group_labels[list(subgraph)] = current_group
-                current_group += 1
-
-        return group_labels
+    # write files
+    for frame in np.arange(1, dataset.data.frame_max_index):
+        writer.addSpectrum(
+            mzs=peak_list["mz_values"],
+            intensities=intensity_array.loc[frame],
+            mobilities=peak_list["mobility_values"],
+            coords=pos.loc[frame],
+        )
+    writer.close()
