@@ -14,5 +14,8 @@ src/timsimaging.egg-info/SOURCES.txt
 src/timsimaging.egg-info/dependency_links.txt
 src/timsimaging.egg-info/requires.txt
 src/timsimaging.egg-info/top_level.txt
+src/timsimaging/.ipynb_checkpoints/plotting-checkpoint.py
+src/timsimaging/.ipynb_checkpoints/spectrum-checkpoint.py
+src/timsimaging/.ipynb_checkpoints/utils-checkpoint.py
 tests/__init__.py
 tests/test_version.py

@@ -5,6 +5,9 @@ from numba import jit, njit
 from numba.typed import List
 from typing import Iterable, Literal
 
+# def rms_norm(x):
+#     return x/np.std(x)
+    
 class CoordsGraph:
     """A class for distance-based graph in high dimensional space
     """

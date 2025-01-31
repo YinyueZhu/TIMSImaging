@@ -16,7 +16,7 @@ from pyimzml.compression import NoCompression, ZlibCompression
 
 from bokeh.plotting import show
 from .utils import CoordsGraph
-from .plotting import spectrum, mobilogram, heatmap, image
+from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 __all__=["MSIDataset", "Frame", "export_imzML"]
 
 class MSIDataset:
@@ -138,7 +138,8 @@ class MSIDataset:
                 mobility_domain=self.data.mobility_values,
             )
 
-    def process(self, sampling_ratio=0.1, intensity_threshold=0.05, **kwargs) -> Dict:
+    def process(self, sampling_ratio=0.1, intensity_threshold=0.05, visualize=False, 
+    ccs_calibration=False, verbose=False, **kwargs) -> Dict:
         """Process the dataset to peak picked and aligned data cube
 
         :param sampling_ratio: ratio for computing the mean spectrum, defaults to 0.1
@@ -148,6 +149,7 @@ class MSIDataset:
         :return: a dictionary with intensity array, peak list and coordinates
         :rtype: Dict
         """
+        # peak picking
         mean_spec = self.mean_spectrum(
             sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold
         )
@@ -173,6 +175,20 @@ class MSIDataset:
             "peak_list": peak_list,
             "intensity_array": intensity_array,
         }  # 3 dataframes
+        if visualize is True:
+            app = _visualize(self, mean_spec, peak_list, peak_extents)
+            results["viz"]=app
+
+        if ccs_calibration is True:
+            calibrator = self.ccs_calibrator()
+            # assume charge is 1, true for most ions in MALDI
+            # add isotope envelope decection for more accurate computation
+            ccs_values = calibrator.transform(
+                peak_list["mz_values"], peak_list["mobility_values"], charge=1
+            )
+            results["peak_list"]["ccs_values"] = ccs_values
+            results["ccs_calibrator"] = calibrator
+            
         return results
 
     def image(self):
