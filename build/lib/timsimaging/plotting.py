@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 __all__ = ["image", "scatterplot", "heatmap", "mobilogram", "heatmap_layouts", "dashboard"]
 
+IMAGE_TOOLS= "pan,wheel_zoom,box_select,tap,hover,save,reset"
 
 def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["TIC", "RMS", "none"]="TIC") -> Tuple[figure, ColumnDataSource]:
     """Visualized the pixel grid of the dataset
@@ -55,6 +56,7 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
     f = figure(
         title="Ion Image",
         match_aspect=True,
+        tools=IMAGE_TOOLS,
         toolbar_location="right",
         x_axis_label="X",
         y_axis_label="Y",
@@ -70,12 +72,12 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
         width=1,
         height=1,
         source=source,
-        line_alpha=0,
-        line_width=0,
+        #line_alpha=0,
+        #line_width=0,
         hover_line_alpha=1,
         hover_line_width=1,
         hover_line_color="gray",
-        fill_color=cmap,
+        color=cmap,
     )
     pixel_grid.tags = ["image"]
 
@@ -917,8 +919,11 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
         mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
 
         # pixel-wise intensity
-        image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-        peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+        # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+        # peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+
+        indices = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max, "raw"]
+        peak_intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
         image_source.data["total_intensity"] = peak_intensities
         image_source.data["normalized"] = peak_intensities / peak_intensities.max()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"

@@ -11,6 +11,7 @@ from bokeh.models import (
     NumberFormatter,
     TableColumn,
     TapTool,
+    BoxSelectTool,
     GridBox,
     LinearColorMapper,
     ScaleBar,
@@ -27,7 +28,6 @@ if TYPE_CHECKING:
     from .spectrum import Frame, MSIDataset
 
 __all__ = ["image", "scatterplot", "heatmap", "mobilogram", "heatmap_layouts", "dashboard"]
-
 
 def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["TIC", "RMS", "none"]="TIC") -> Tuple[figure, ColumnDataSource]:
     """Visualized the pixel grid of the dataset
@@ -55,6 +55,7 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
     f = figure(
         title="Ion Image",
         match_aspect=True,
+        #tools="pan,wheel_zoom,box_select,tap,hover,save,reset",
         toolbar_location="right",
         x_axis_label="X",
         y_axis_label="Y",
@@ -70,12 +71,12 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
         width=1,
         height=1,
         source=source,
-        line_alpha=0,
-        line_width=0,
+        #line_alpha=0,
+        #line_width=0,
         hover_line_alpha=1,
         hover_line_width=1,
         hover_line_color="gray",
-        fill_color=cmap,
+        color=cmap,
     )
     pixel_grid.tags = ["image"]
 
@@ -576,6 +577,8 @@ def dashboard(
 
     image_source.selected.on_change("indices", tap_callback)
 
+    # box select
+    
     # peak list
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
@@ -868,6 +871,16 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
 
     image_source.selected.on_change("indices", tap_callback)
 
+    # add box selection tool(for future ROI selection)
+    box_select = BoxSelectTool(renderers=[pixel_grid])
+    image_figure.add_tools(box_select)
+    box_select_div = Div(text="Selected index")
+    def box_select_callback(attr, old, new):
+        selected_indices = new
+        if selected_indices:
+            box_select_div.text = f"{len(selected_indices)} pixels selected"
+    image_source.selected.on_change("indices", box_select_callback)
+
     # peak list
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
@@ -1043,6 +1056,7 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
                     meanspec_button,
                     ccs_button,
                     export_button,
+                    box_select_div,
                 ),
             ],
         ],

@@ -17,7 +17,9 @@ from pyimzml.compression import NoCompression, ZlibCompression
 from bokeh.plotting import show
 from .utils import CoordsGraph
 from .plotting import spectrum, mobilogram, heatmap, image, _visualize
-__all__=["MSIDataset", "Frame", "export_imzML"]
+
+__all__ = ["MSIDataset", "Frame", "export_imzML"]
+
 
 class MSIDataset:
     """The class for a raw MSI dataset"""
@@ -54,7 +56,7 @@ class MSIDataset:
         return Frame(self.data[index])
 
     def ccs_calibrator(self):
-        """Generate a CCS calibrater, mapping 1/K_0 -> CCS
+        """Generate a CCS calibrater, mapping 1/K_0 -> CCS, using Calibrants(not Mason-Shamp equation)
 
         :return: calibrator
         :rtype: CCS_calibration
@@ -75,6 +77,11 @@ class MSIDataset:
         return calibrator
 
     def tic(self) -> pd.Series:
+        """TIC
+
+        :return: _description_
+        :rtype: pd.Series
+        """
         # is already summarized in .tdf
         total_intensities = self.data.frames["SummedIntensities"][1:]
         return total_intensities
@@ -138,8 +145,15 @@ class MSIDataset:
                 mobility_domain=self.data.mobility_values,
             )
 
-    def process(self, sampling_ratio=0.1, intensity_threshold=0.05, visualize=False, 
-    ccs_calibration=False, verbose=False, **kwargs) -> Dict:
+    def process(
+        self,
+        sampling_ratio=0.1,
+        intensity_threshold=0.05,
+        visualize=False,
+        ccs_calibration=False,
+        verbose=False,
+        **kwargs,
+    ) -> Dict:
         """Process the dataset to peak picked and aligned data cube
 
         :param sampling_ratio: ratio for computing the mean spectrum, defaults to 0.1
@@ -177,7 +191,7 @@ class MSIDataset:
         }  # 3 dataframes
         if visualize is True:
             app = _visualize(self, mean_spec, peak_list, peak_extents)
-            results["viz"]=app
+            results["viz"] = app
 
         if ccs_calibration is True:
             calibrator = self.ccs_calibrator()
@@ -188,11 +202,18 @@ class MSIDataset:
             )
             results["peak_list"]["ccs_values"] = ccs_values
             results["ccs_calibrator"] = calibrator
-            
+
         return results
 
-    def image(self):
-        f, _ = image(self)
+    def image(self, mz: slice = None, mobility: slice = None):
+        """Show slice image of a dataset, TIC image by default
+
+        :param mz: mz range, defaults to None
+        :type mz: slice, optional
+        :param mobility: mobility range, defaults to None
+        :type mobility: slice, optional
+        """
+        f, _ = image(self, mz=mz, mobility=mobility)
         show(f)
 
 
@@ -458,7 +479,6 @@ class Frame:
 
     def lower_star_filter(self):
         pass
-
 
 
 def export_imzML(

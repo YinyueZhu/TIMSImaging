@@ -21,15 +21,14 @@ from bokeh.models import (
 from bokeh.models.annotations.dimensional import CustomDimensional
 from bokeh.plotting import figure
 from bokeh.transform import log_cmap, linear_cmap
-from typing import Callable, TYPE_CHECKING, Tuple
+from typing import Callable, TYPE_CHECKING, Tuple, Literal
 
 if TYPE_CHECKING:
     from .spectrum import Frame, MSIDataset
 
 __all__ = ["image", "scatterplot", "heatmap", "mobilogram", "heatmap_layouts", "dashboard"]
 
-
-def image(dataset: "MSIDataset", mz=None, mobility=None, normalization=None) -> Tuple[figure, ColumnDataSource]:
+def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["TIC", "RMS", "none"]="TIC") -> Tuple[figure, ColumnDataSource]:
     """Visualized the pixel grid of the dataset
 
     :param dataset: the dataset
@@ -46,11 +45,16 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization=None) -> 
     else:
         intensities = dataset.tic()
     source.data["total_intensity"] = intensities
-    source.data["normalized"] = intensities / intensities.max()
+
+    if normalization=="TIC":
+        source.data["normalized"] = intensities / intensities.max()
+    elif normalization=="RMS":
+        source.data["normalized"] = intensities / intensities.std()
 
     f = figure(
         title="Ion Image",
         match_aspect=True,
+        tools="pan,wheel_zoom,box_select,tap,hover,save,reset",
         toolbar_location="right",
         x_axis_label="X",
         y_axis_label="Y",
@@ -66,12 +70,12 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization=None) -> 
         width=1,
         height=1,
         source=source,
-        line_alpha=0,
-        line_width=0,
+        #line_alpha=0,
+        #line_width=0,
         hover_line_alpha=1,
         hover_line_width=1,
         hover_line_color="gray",
-        fill_color=cmap,
+        color=cmap,
     )
     pixel_grid.tags = ["image"]
 
@@ -492,7 +496,7 @@ def heatmap_layouts(
 
 @bkapp
 def dashboard(
-    dataset: "MSIDataset", sampling_ratio=1.0, intensity_threshold=0.05, **kwargs
+    dataset: "MSIDataset", sampling_ratio=1.0, intensity_threshold=0.05, normalization="TIC", **kwargs
 ):
     """The interactive visualization for a dataset
 
@@ -572,6 +576,8 @@ def dashboard(
 
     image_source.selected.on_change("indices", tap_callback)
 
+    # box select
+    
     # peak list
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
@@ -620,10 +626,16 @@ def dashboard(
         mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
 
         # pixel-wise intensity
-        image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-        peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+        #image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+        #peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+        indices = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max, "raw"]
+        peak_intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
+
         image_source.data["total_intensity"] = peak_intensities
-        image_source.data["normalized"] = peak_intensities / peak_intensities.max()
+        if normalization=="TIC":
+            image_source.data["normalized"] = peak_intensities / peak_intensities.max()
+        elif normalization=="RMS":
+            image_source.data["normalized"] = peak_intensities / peak_intensities.std()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"
 
     peak_table_source = ColumnDataSource(peak_list)
@@ -858,6 +870,8 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
 
     image_source.selected.on_change("indices", tap_callback)
 
+    # add box selection tool
+    
     # peak list
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
@@ -895,6 +909,7 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
     peak_checkbox.on_change("active", plot_peak_box)
 
     def look_into_peak(attr, old, new):
+        # index start from 0
         peak_idx = new[0]
         x, y, w, h = peak_rect_data.iloc[peak_idx]
         heatmap_figure.x_range.start = x - 0.5 * h * width / height * 1.5
@@ -906,8 +921,11 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
         mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
 
         # pixel-wise intensity
-        image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-        peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+        # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+        # peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+
+        indices = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max, "raw"]
+        peak_intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
         image_source.data["total_intensity"] = peak_intensities
         image_source.data["normalized"] = peak_intensities / peak_intensities.max()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"
@@ -932,7 +950,6 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
     ]
 
     peak_table = DataTable(source=peak_table_source, columns=columns, width=580)
-    # when one entry is selected, call look_into_peak
     peak_table_source.selected.on_change("indices", look_into_peak)
 
     def range_callback(attr, old, new):
