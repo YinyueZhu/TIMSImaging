@@ -8,6 +8,7 @@ import sqlite3
 import os
 
 from ripser import ripser
+from scipy.sparse import coo_matrix
 from scipy.ndimage import maximum_filter, minimum_filter1d
 from typing import List, Iterable, Literal, Dict
 from pyimzml.ImzMLWriter import ImzMLWriter
@@ -36,8 +37,11 @@ class MSIDataset:
         # parse .tdf SQL file
         with sqlite3.connect(os.path.join(path, "analysis.tdf")) as con:
             # read pixel coordinates
-            self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
-                ["Frame", "XIndexPos", "YIndexPos"]
+            # self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
+            #     ["Frame", "XIndexPos", "YIndexPos"]
+            # ]
+            self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con, index_col='Frame')[
+                ["XIndexPos", "YIndexPos"]
             ]
             # imaging resolution in μm
             img_res = pd.read_sql("SELECT * FROM MaldiFrameLaserInfo", con)["SpotSize"][0]
@@ -49,11 +53,17 @@ class MSIDataset:
             self.data.mobility_values
         )
         self.resolution = {"xy": img_res, "mz": mz_res, "1/K0": mob_res}
-        # calibration info
+        self.rois = {}
+
+    def __repr__(self):
+        return f"{self.__class__.__name__} with {self.data.frame_max_index-1} pixels\n\
+        mz range: {self.data.mz_min_value:.3f}-{self.data.mz_max_value:.3f}\n\
+        mobility range: {self.data.mobility_min_value:.3f}-{self.data.mobility_max_value:.3f}\n\
+        "
 
     # get one frame
     def __getitem__(self, index):
-        return Frame(self.data[index])
+        return Frame(self.data[index], mz_domain=self.data.mz_values, mobility_domain=self.data.mobility_values)
 
     def ccs_calibrator(self):
         """Generate a CCS calibrater, mapping 1/K_0 -> CCS, using Calibrants(not Mason-Shamp equation)
@@ -63,7 +73,7 @@ class MSIDataset:
         """
         from .calibration import CCS_calibration
 
-        polarity = self.cali_info.loc[0, "KeyPolarity"]
+        polarity = self.cali_info["KeyPolarity"].iloc[0]
         # calibrants in chemical formula
         calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
         calibrants = calibrants.split("\x00")[:-1]
@@ -83,12 +93,38 @@ class MSIDataset:
         :rtype: pd.Series
         """
         # is already summarized in .tdf
-        total_intensities = self.data.frames["SummedIntensities"][1:]
-        return total_intensities
+        intensities = self.data.frames["SummedIntensities"][1:]
+        intensities.name = "intensity_values"
+        return intensities
+
+    def slice_image(self, mz:slice=None, mobility:slice=None)->np.ndarray:
+        """Get slice image data, used for ion images.  
+        Example: slice_image(mz=slice(499, 500), mobility=slice(1.0, 1.1))
+
+        :param mz: mz range in slice, defaults to None
+        :type mz: slice, optional
+        :param mobility: mobility range in slice, defaults to None
+        :type mobility: slice, optional
+        :return: an intensity array
+        :rtype: np.ndarray
+        """
+        if mz is not None or mobility is not None:
+            indices = self.data[:, mobility, 0, mz, "raw"]
+            intensities = self.data.bin_intensities(indices, axis=["rt_values"])[1:]
+        else:
+            intensities = self.tic().to_numpy()
+        return intensities
+    
+    def set_ROI(self, name, xmin=None, xmax=None, ymin=None, ymax=None):
+        filt1 = self.pos["XIndexPos"] > xmin if xmin is not None else True
+        filt2 = self.pos["XIndexPos"] < xmax if xmax is not None else True
+        filt3 = self.pos["YIndexPos"] > ymin if ymin is not None else True
+        filt4 = self.pos["YIndexPos"] > ymax if ymax is not None else True
+        self.rois[name] = self.pos.loc[filt1 & filt2 & filt3 & filt4].index.to_numpy()
 
     def mean_spectrum(
         self,
-        frame_indices=None,
+        frame_indices: np.ndarray =None,
         sampling_ratio: float = 1.0,
         intensity_threshold: float = 0.05,
         as_frame=False,
@@ -102,18 +138,21 @@ class MSIDataset:
         :return: _description_
         :rtype: _type_
         """
+        if frame_indices is None:
+            frame_indices = np.arange(1, self.data.frame_max_index)
+            n_frame = self.data.frame_max_index-1
+        # if sampling_ratio == 1:
+        #     intensity_indices = np.arange(len(self.data))
+        #     n_frame = self.data.frame_max_index - 1
 
-        if sampling_ratio == 1:
-            intensity_indices = np.arange(len(self.data))
-            n_frame = self.data.frame_max_index - 1
         # randomly pick frames out of n
-        elif sampling_ratio < 1:
-            n_frame = int(self.data.frame_max_index * sampling_ratio)
+        if sampling_ratio < 1:
+            n_frame = int(frame_indices.shape[0] * sampling_ratio)
             frame_indices = np.random.choice(
-                np.arange(1, self.data.frame_max_index),
+                frame_indices,
                 size=n_frame,
             )
-            intensity_indices = self.data[frame_indices, "raw"]
+        intensity_indices = self.data[frame_indices, "raw"]
 
         sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
         if intensity_threshold is not None:
@@ -149,6 +188,7 @@ class MSIDataset:
         self,
         sampling_ratio=0.1,
         intensity_threshold=0.05,
+        roi = None, # what if there are multiple ROIs?
         visualize=False,
         ccs_calibration=False,
         verbose=False,
@@ -164,17 +204,22 @@ class MSIDataset:
         :rtype: Dict
         """
         # peak picking
+        if roi is not None:
+            assert roi in self.rois
+            frame_indices = self.rois[roi]
+        else:
+            frame_indices = np.arange(1, self.data.frame_max_index)
         mean_spec = self.mean_spectrum(
-            sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold
-        )
+            sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold, frame_indices=frame_indices)
+                    
         peak_list, peak_extents = mean_spec.peakPick(return_extents=True, **kwargs)
         n_peak = peak_list.shape[0]
 
         # use dataframe for missing values
         intensity_array = pd.DataFrame(
             None,
-            index=range(1, self.data.frame_max_index),
-            columns=range(1, n_peak + 1),
+            index=frame_indices,
+            columns=np.arange(1, n_peak + 1),
         )
         for i in range(n_peak):
             mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
@@ -185,7 +230,7 @@ class MSIDataset:
         intensity_array.fillna(0.0, inplace=True)
 
         results = {
-            "coords": self.pos,
+            "coords": self.pos.loc[frame_indices],
             "peak_list": peak_list,
             "intensity_array": intensity_array,
         }  # 3 dataframes
@@ -226,6 +271,7 @@ class Frame:
         mz_domain: np.ndarray | None = None,
         mobility_domain: np.ndarray | None = None,
         coords: List[int] = None,
+        #dataset: MSIDataset = None,
     ):
         """
 
@@ -291,7 +337,8 @@ class Frame:
                         self.idx_available = True
                     else:
                         raise TypeError("Invalid domains")
-
+        self.mz_domain = mz_domain
+        self.mobility_domain = mobility_domain
         self.coords = coords
         # compute resolution(minimium stride) in each dimension
         self.resolution = (
@@ -337,11 +384,23 @@ class Frame:
     def intensity(self):
         return self.data["intensity_values"].to_numpy()
 
+    def to_dense_array(self):
+        df = self.data
+        X = self.mz_domain
+        Y = self.mobility_domain
+    
+        intensity_mx = coo_matrix((df.intensity_values, 
+                (df.scan_indices, df.tof_indices)), 
+               shape=(len(Y), len(X)))
+        return intensity_mx.toarray()
+        
     def peakPick(
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
         window_size: Iterable[int] = [17, 7],
+        subdivide = True,
+        adaptive_window_size = False, 
         count_thrshold=5,  # at least 5 points for a 3D peak
         sort=False,
         return_labels=False,
@@ -370,15 +429,19 @@ class Frame:
 
         if self.idx_available is True:
             coords = self.data[["tof_indices", "scan_indices"]].to_numpy(
-                dtype=np.float64, copy=True
-            )
+                dtype=np.float32, copy=True
+            ) # coercing is expensive
+
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
+        
+        print("Traversing graph...")
         group_labels = graph.group_nodes(count_thrshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
         )  # filter, then group
 
+        print("Finding local maxima...")
         peak_labels = np.zeros_like(group_labels)
         current_group = 1
         for i, g in intensity_groups:
@@ -394,10 +457,13 @@ class Frame:
             #     ),
             # )
             dense_mx.fillna(0, inplace=True)
+            if adaptive_window_size:
+                w, h = dense_mx.shape
+                window_size = [max(w//2+1, window_size[0]), max(h//2+1, window_size[1])]
             maxima = maximum_filter(dense_mx, size=window_size)  # row index is y and col is x
             # find local maxima
             peaks = dense_mx.where((dense_mx == maxima) & dense_mx > 0).stack()
-            if peaks.shape[0] > 1:  # isomers
+            if (peaks.shape[0] > 1) and subdivide:  # isomers
                 peaks = peaks.reset_index()
                 # is mz resolvable?
                 # tof_indices are stored as unsigned integer
@@ -434,7 +500,7 @@ class Frame:
         peak_groups = self.data[peak_labels > 0].groupby(
             peak_labels[peak_labels > 0], group_keys=True
         )
-
+        print("Summarizing...")
         # intensity-weighted mz and mob
         peak_list = peak_groups.apply(
             lambda df: df[["mz_values", "mobility_values"]].apply(
@@ -485,10 +551,22 @@ def export_imzML(
     dataset: MSIDataset,
     path: str,
     peaks: Dict = None,
-    mode="centroid",
-    imzml_mode="continuous",
+    mode: Literal["centroid", "profile"]="centroid",
+    imzml_mode: Literal["continuous", "processed"]="continuous",
 ):
+    """Export processed data as imzML format with ion mobility
 
+    :param dataset: the original dataset, contains necessary metadata
+    :type dataset: MSIDataset
+    :param path: path of the output
+    :type path: str
+    :param peaks: processing results from MSIDataset.process(), defaults to None
+    :type peaks: Dict, optional
+    :param mode: , defaults to "centroid"
+    :type mode: Literal[&quot;centroid&quot;, &quot;profile&quot;], optional
+    :param imzml_mode: mode of arrays in the imzML file, defaults to "continuous"
+    :type imzml_mode: Literal[&quot;continuous&quot;, &quot;processed&quot;], optional
+    """
     key_polarity = dataset.cali_info["KeyPolarity"].iloc[0]
     if key_polarity == "+":
         polarity = "positive"
@@ -528,7 +606,7 @@ def export_imzML(
     else:
         peak_list = peaks["peak_list"]
         intensity_array = peaks["intensity_array"]
-    pos = dataset.pos.set_index("Frame")
+    # pos = dataset.pos.set_index("Frame")
 
     # write files
     for frame in np.arange(1, dataset.data.frame_max_index):
@@ -536,6 +614,6 @@ def export_imzML(
             mzs=peak_list["mz_values"],
             intensities=intensity_array.loc[frame],
             mobilities=peak_list["mobility_values"],
-            coords=pos.loc[frame],
+            coords=dataset.pos.loc[frame],
         )
     writer.close()

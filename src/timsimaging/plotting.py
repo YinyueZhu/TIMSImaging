@@ -1,6 +1,6 @@
 import pandas as pd
 from bokeh.document import Document
-from bokeh.layouts import column, grid, row, layout
+from bokeh.layouts import column, grid, row, layout, gridplot
 from bokeh.models import (
     Button,
     Checkbox,
@@ -11,9 +11,9 @@ from bokeh.models import (
     NumberFormatter,
     TableColumn,
     TapTool,
+    WheelZoomTool,
     BoxSelectTool,
-    GridBox,
-    LinearColorMapper,
+    CrosshairTool,
     ScaleBar,
     CustomJS,
     Metric,
@@ -29,16 +29,30 @@ if TYPE_CHECKING:
 
 __all__ = ["image", "scatterplot", "heatmap", "mobilogram", "heatmap_layouts", "dashboard"]
 
-def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["TIC", "RMS", "none"]="TIC") -> Tuple[figure, ColumnDataSource]:
-    """Visualized the pixel grid of the dataset
 
-    :param dataset: the dataset
+def image(
+    dataset: "MSIDataset",
+    mz:slice=None,
+    mobility:slice=None,
+    normalization: Literal["TIC", "RMS", "none"] = "TIC",
+) -> Tuple[figure, ColumnDataSource]:
+    """Visualize images of a dataset.
+    By default it is the TIC image. If mz and mobility provided, 
+    all intensities within the slices would be aggregated across pixels
+
+    :param dataset: the dataset to visualize
     :type dataset: MSIDataset
-    :return: the pixel grid(ion images in the future)
-    :rtype: figure
+    :param mz: the m/z slice to subset the data, defaults to None
+    :type mz: slice, optional
+    :param mobility: the mobility slice to subset the data, defaults to None
+    :type mobility: slice, optional
+    :param normalization: normalize pixel intensities, defaults to "TIC"
+    :type normalization: Literal[&quot;TIC&quot;, &quot;RMS&quot;, &quot;none&quot;], optional
+    :return: the image and its data source
+    :rtype: Tuple[figure, ColumnDataSource]
     """
 
-    source = ColumnDataSource(dataset.pos)
+    source = ColumnDataSource(dataset.pos.reset_index())
 
     if mz is not None or mobility is not None:
         indices = dataset.data[:, mobility, 0, mz, "raw"]
@@ -47,19 +61,21 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
         intensities = dataset.tic()
     source.data["total_intensity"] = intensities
 
-    if normalization=="TIC":
+    if normalization == "TIC":
         source.data["normalized"] = intensities / intensities.max()
-    elif normalization=="RMS":
+    elif normalization == "RMS":
         source.data["normalized"] = intensities / intensities.std()
 
     f = figure(
         title="Ion Image",
         match_aspect=True,
-        #tools="pan,wheel_zoom,box_select,tap,hover,save,reset",
+        # tools="pan,wheel_zoom,box_select,tap,hover,save,reset",
         toolbar_location="right",
         x_axis_label="X",
         y_axis_label="Y",
     )
+    f.toolbar.active_scroll = f.select_one({"type": WheelZoomTool})
+
     # (0,0) is on the top-left for ion images
     f.y_range.flipped = True
 
@@ -71,8 +87,8 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
         width=1,
         height=1,
         source=source,
-        #line_alpha=0,
-        #line_width=0,
+        # line_alpha=0,
+        # line_width=0,
         hover_line_alpha=1,
         hover_line_width=1,
         hover_line_color="gray",
@@ -108,7 +124,7 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
         tooltips=[
             ("X", "@XIndexPos"),
             ("Y", "@YIndexPos"),
-            ("Frame", "@Frame"),
+            ("Frame index", "@Frame"),
             ("Intensity", "@total_intensity"),
         ],
     )
@@ -117,11 +133,11 @@ def image(dataset: "MSIDataset", mz=None, mobility=None, normalization:Literal["
 
 
 def scatterplot(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
-    """Visualize a 2D spectogram
+    """Visualize a 2D spectogram in scatter plot, with better performance compared with heatmap
 
     :param frame: the frame to visualize
     :type frame: Frame
-    :return: the 2D spectogram
+    :return: the 2D spectogram and its datasource
     :rtype: figure
     """
 
@@ -131,19 +147,23 @@ def scatterplot(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
 
     f = figure(
         title="2D Spectrogram",
-        x_range=(df["mz_values"].min(), df["mz_values"].max()),
-        y_range=(df["mobility_values"].min(), df["mobility_values"].max()),
+        x_range=(frame.mz_domain.min(), frame.mz_domain.max()),
+        y_range=(frame.mobility_domain.min(), frame.mobility_domain.max()),
         toolbar_location="right",
         background_fill_color="black",
-        aspect_ratio=1.1,
-        # height=600,
-        # sizing_mode="fixed",
+        aspect_ratio=1,
         match_aspect=True,
     )
 
     # the 2D spectrogram
 
-    cmap = log_cmap("intensity_values", palette="Plasma256", low=1, high=1000)
+    cmap = log_cmap(
+        "intensity_values",
+        palette="Magma256",
+        low=0.01,
+        # high=df["intensity_values"].quantile(q=0.95),
+        high=df["intensity_values"].max(),
+    )
 
     spec2d = f.scatter(
         x="mz_values",
@@ -154,6 +174,9 @@ def scatterplot(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     color_bar = spec2d.construct_color_bar()
     f.add_layout(color_bar, "right")
 
+    crosshair = CrosshairTool(line_color='white')
+    f.add_tools(crosshair)
+    
     hover = HoverTool(
         renderers=[spec2d],
         tooltips=[
@@ -172,7 +195,7 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
 
     :param frame: the frame to visualize
     :type frame: Frame
-    :return: the 2D spectogram
+    :return: the 2D spectogram and its data source
     :rtype: figure
     """
 
@@ -182,22 +205,23 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
 
     f = figure(
         title="2D Spectrogram",
-        x_range=(df["mz_values"].min(), df["mz_values"].max()),
-        y_range=(df["mobility_values"].min(), df["mobility_values"].max()),
+        x_range=(frame.mz_domain.min(), frame.mz_domain.max()),
+        y_range=(frame.mobility_domain.min(), frame.mobility_domain.max()),
         toolbar_location="right",
         background_fill_color="black",
-        aspect_ratio=1.1,
+        aspect_ratio=1,
         # height=600,
         # sizing_mode="fixed",
         match_aspect=True,
     )
-
+    f.toolbar.active_scroll = f.select_one({"type": WheelZoomTool})
     # the 2D spectrogram
 
     cmap = log_cmap(
         "intensity_values",
-        palette="Plasma256",
-        low=1,
+        palette="Magma256",
+        low=0.01,
+        # high=df["intensity_values"].quantile(q=0.95),
         high=df["intensity_values"].max(),
     )
 
@@ -211,6 +235,9 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     )
     color_bar = spec2d.construct_color_bar()
     f.add_layout(color_bar, "right")
+
+    crosshair = CrosshairTool(line_color='white')
+    f.add_tools(crosshair)
 
     hover = HoverTool(
         renderers=[spec2d],
@@ -226,6 +253,13 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
 
 
 def spectrum(data: pd.DataFrame) -> Tuple[figure, ColumnDataSource]:
+    """Visualize a classical mass spectrum using line plot
+
+    :param data: the data to visualize, with "mz_values" column and "intensity_values" column
+    :type data: pd.DataFrame
+    :return: the 1D mass spectrum and its data source
+    :rtype: Tuple[figure, ColumnDataSource]
+    """
     source = ColumnDataSource(data)
     f = figure(
         title="1D spectrum",
@@ -253,6 +287,15 @@ def spectrum(data: pd.DataFrame) -> Tuple[figure, ColumnDataSource]:
 
 
 def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, ColumnDataSource]:
+    """Visualize a mobilogram using line plot
+
+    :param data: the data to visualize, with "mobility_values" column and "intensity_values" column
+    :type data: pd.DataFrame
+    :param transposed: swap x and y axis to set the mobilogram as y-marginal, defaults to False
+    :type transposed: bool, optional
+    :return: the mobilogram and its data source
+    :rtype: Tuple[figure, ColumnDataSource]
+    """
     source = ColumnDataSource(data)
     if transposed:
         f = figure(
@@ -296,13 +339,6 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
     return f, source
 
 
-# def bkapp(func): # function a Bokeh app
-#     def wrapper(doc: Document, *args, **kwargs):
-#         ui = func(*args, **kwargs)
-#         doc.add_root(ui)
-#     return wrapper
-
-
 # make a function a Bokeh application
 def bkapp(func):
     def wrapper(*args, **kwargs):
@@ -318,8 +354,8 @@ def bkapp(func):
 @bkapp
 def heatmap_layouts(
     frame: "Frame",
-    peak_list: pd.DataFrame= None,
-    peak_extents: pd.DataFrame=None,
+    peak_list: pd.DataFrame = None,
+    peak_extents: pd.DataFrame = None,
     **kwargs,
 ):
     """The interactive visualization of a frame.
@@ -415,16 +451,18 @@ def heatmap_layouts(
     ]
     peak_table = DataTable(source=peak_table_source, columns=columns)
     # when one entry is selected, call look_into_peak
-    peak_table_source.selected.on_change("indices", look_into_peak)
+    # peak_table_source.selected.on_change("indices", look_into_peak)
 
     # 1d projections
     spec1d_df = df.groupby("mz_values")["intensity_values"].sum().reset_index()
     spec1d_figure, spec1d_source = spectrum(spec1d_df)
     spec1d_figure.x_range = heatmap_figure.x_range
+    spec1d_figure.height = heatmap_figure.height // 2
 
     mob_df = df.groupby("mobility_values")["intensity_values"].sum().reset_index()
     mob_figure, mob_source = mobilogram(mob_df, transposed=True)
     mob_figure.y_range = heatmap_figure.y_range
+    mob_figure.width = heatmap_figure.width // 2
 
     range_div = Div(
         text="""
@@ -482,22 +520,28 @@ def heatmap_layouts(
     #     [f, column([peak_checkbox, peak_table]), axis_range_button],
     #     sizing_mode="stretch_both",
     # )
-    layouts = grid(
+    layouts = row(
         [
-            [heatmap_figure, mob_figure],
-            [
-                spec1d_figure,
-                column([peak_checkbox, grid_checkbox, peak_table, range_div]),
-            ],
+            gridplot(
+                [
+                    [heatmap_figure, mob_figure],
+                    [spec1d_figure, None],
+                ]
+            ),
+            column([peak_checkbox, grid_checkbox, peak_table, range_div]),
         ],
-        sizing_mode="fixed",
+        sizing_mode="scale_width",
     )
     return layouts
 
 
 @bkapp
 def dashboard(
-    dataset: "MSIDataset", sampling_ratio=1.0, intensity_threshold=0.05, normalization="TIC", **kwargs
+    dataset: "MSIDataset",
+    sampling_ratio=1.0,
+    intensity_threshold=0.05,
+    normalization="TIC",
+    **kwargs,
 ):
     """The interactive visualization for a dataset
 
@@ -578,7 +622,7 @@ def dashboard(
     image_source.selected.on_change("indices", tap_callback)
 
     # box select
-    
+
     # peak list
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
@@ -627,15 +671,15 @@ def dashboard(
         mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
 
         # pixel-wise intensity
-        #image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-        #peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
+        # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+        # peak_intensities = image_data.groupby("frame_indices")["intensity_values"].sum()
         indices = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max, "raw"]
         peak_intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
 
         image_source.data["total_intensity"] = peak_intensities
-        if normalization=="TIC":
+        if normalization == "TIC":
             image_source.data["normalized"] = peak_intensities / peak_intensities.max()
-        elif normalization=="RMS":
+        elif normalization == "RMS":
             image_source.data["normalized"] = peak_intensities / peak_intensities.std()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"
 
@@ -794,8 +838,14 @@ def plot(frame: "Frame", **kwargs) -> Callable[[Document], None]:
     """
     return lambda doc: (heatmap_layouts(doc, frame=frame, **kwargs))
 
+
 @bkapp
-def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.DataFrame, peak_extents: pd.DataFrame):
+def _visualize(
+    dataset: "MSIDataset",
+    mean_spectrum: "Frame",
+    peak_list: pd.DataFrame,
+    peak_extents: pd.DataFrame,
+):
     """A helper function to build a visualization App from processed data
 
     :param dataset: the original dataset, used for metadata and dynamic viz
@@ -851,7 +901,7 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
 
     # add taptool
     pixel_grid = image_figure.select(tags=["image"])[0]
-    tap = TapTool(renderers=[pixel_grid])
+    tap = TapTool(renderers=[pixel_grid], mode="replace")
     image_figure.add_tools(tap)
     tap_div = Div(text="Selected index")
 
@@ -875,10 +925,12 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
     box_select = BoxSelectTool(renderers=[pixel_grid])
     image_figure.add_tools(box_select)
     box_select_div = Div(text="Selected index")
+
     def box_select_callback(attr, old, new):
         selected_indices = new
         if selected_indices:
             box_select_div.text = f"{len(selected_indices)} pixels selected"
+
     image_source.selected.on_change("indices", box_select_callback)
 
     # peak list
@@ -1043,7 +1095,7 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
     # Assign the Python callback to the button
     export_button.on_click(export_csv)
 
-    layouts = grid(
+    layouts = layout(
         [
             [image_figure, heatmap_figure, mob_figure],
             [
@@ -1060,6 +1112,6 @@ def _visualize(dataset: "MSIDataset", mean_spectrum: "Frame", peak_list: pd.Data
                 ),
             ],
         ],
-        # sizing_mode="fixed",
+        sizing_mode="scale_width",
     )
     return layouts
