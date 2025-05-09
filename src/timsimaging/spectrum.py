@@ -6,8 +6,9 @@ import numpy as np
 import pandas as pd
 import sqlite3
 import os
+from tqdm import tqdm
 
-from ripser import ripser
+# from ripser import ripser
 from scipy.sparse import coo_matrix
 from scipy.ndimage import maximum_filter, minimum_filter1d
 from typing import List, Iterable, Literal, Dict
@@ -16,7 +17,7 @@ from pyimzml.compression import NoCompression, ZlibCompression
 
 
 from bokeh.plotting import show
-from .utils import CoordsGraph
+from .utils import CoordsGraph, local_maxima
 from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 
 __all__ = ["MSIDataset", "Frame", "export_imzML"]
@@ -128,6 +129,7 @@ class MSIDataset:
         sampling_ratio: float = 1.0,
         intensity_threshold: float = 0.05,
         as_frame=False,
+        seed=42,
     ):
         """compute mean spectra over the whole dataset
 
@@ -138,6 +140,9 @@ class MSIDataset:
         :return: _description_
         :rtype: _type_
         """
+
+        if seed is not None:
+            np.random.seed(seed)
         if frame_indices is None:
             frame_indices = np.arange(1, self.data.frame_max_index)
             n_frame = self.data.frame_max_index-1
@@ -152,6 +157,8 @@ class MSIDataset:
                 frame_indices,
                 size=n_frame,
             )
+        elif sampling_ratio==1:
+            n_frame = frame_indices.shape[0]
         intensity_indices = self.data[frame_indices, "raw"]
 
         sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
@@ -191,7 +198,6 @@ class MSIDataset:
         roi = None, # what if there are multiple ROIs?
         visualize=False,
         ccs_calibration=False,
-        verbose=False,
         **kwargs,
     ) -> Dict:
         """Process the dataset to peak picked and aligned data cube
@@ -209,6 +215,8 @@ class MSIDataset:
             frame_indices = self.rois[roi]
         else:
             frame_indices = np.arange(1, self.data.frame_max_index)
+
+        print("Computing mean spectrum...")
         mean_spec = self.mean_spectrum(
             sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold, frame_indices=frame_indices)
                     
@@ -220,14 +228,16 @@ class MSIDataset:
             None,
             index=frame_indices,
             columns=np.arange(1, n_peak + 1),
-        )
-        for i in range(n_peak):
-            mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
+        ) # (n_pixel, n_peak)
+        for i in tqdm(range(n_peak)):
+            tof_min, tof_max, scan_min, scan_max = peak_extents.iloc[i][["tof_indices", "scan_indices"]].astype(int)
             # all data for i-th peak
-            image_data = self.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-            intensity_array[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
+            #image_data = self.data[:, mob_min:mob_max, 0, mz_min:mz_max]
+            #intensity_array[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
+            indices = self.data[:, scan_min:(scan_max+1), 0, tof_min:(tof_max+1), "raw"] # all data points of a peak
+            intensity_array[i + 1] = self.data.bin_intensities(indices, axis=["rt_values"])[frame_indices] # JIT function
 
-        intensity_array.fillna(0.0, inplace=True)
+        #intensity_array.fillna(0.0, inplace=True)
 
         results = {
             "coords": self.pos.loc[frame_indices],
@@ -399,12 +409,13 @@ class Frame:
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
         window_size: Iterable[int] = [17, 7],
+        adaptive_window = False, 
         subdivide = True,
-        adaptive_window_size = False, 
         count_thrshold=5,  # at least 5 points for a 3D peak
         sort=False,
         return_labels=False,
         return_extents=False,
+        return_apex=False,
     ) -> pd.DataFrame:
         """2D peak-picking on a frame
         First group intensities based on approximity in (mz, mobility) space, then detect local maxima in each group
@@ -413,7 +424,7 @@ class Frame:
         :type tolerance: Iterable[int  |  float] | int | float | None, optional
         :param metric: distance metric, defaults to "euclidean"
         :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        :param window_size: window size of the maximum filter, defaults to [13, 5]
+        :param window_size: window size of the maximum filter, defaults to [17, 7]
         :type window_size: Iterable[int], optional
         :param count_thrshold: minimum intensity count of a peak, defaults to 5
         :type count_thrshold: int, optional
@@ -430,7 +441,7 @@ class Frame:
         if self.idx_available is True:
             coords = self.data[["tof_indices", "scan_indices"]].to_numpy(
                 dtype=np.float32, copy=True
-            ) # coercing is expensive
+            ) # coerce to float type to avoid overflow
 
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
         
@@ -442,35 +453,31 @@ class Frame:
         )  # filter, then group
 
         print("Finding local maxima...")
+        raw_apexes = []
         peak_labels = np.zeros_like(group_labels)
         current_group = 1
         for i, g in intensity_groups:
+            # create dense matrix(in DataFrame) for each group
             dense_mx = g.reset_index().pivot(
                 index="scan_indices", columns="tof_indices", values="intensity_values"
-            )  # create dense matrix for each group
-            # dense_mx = dense_mx.reindex(
-            #     index=np.arange(
-            #         np.min(dense_mx.index), np.max(dense_mx.index) + 1
-            #     )[::-1],
-            #     columns=np.arange(
-            #         np.min(dense_mx.columns), np.max(dense_mx.columns) + 1
-            #     ),
-            # )
+            )  
             dense_mx.fillna(0, inplace=True)
-            if adaptive_window_size:
-                w, h = dense_mx.shape
-                window_size = [max(w//2+1, window_size[0]), max(h//2+1, window_size[1])]
-            maxima = maximum_filter(dense_mx, size=window_size)  # row index is y and col is x
             # find local maxima
-            peaks = dense_mx.where((dense_mx == maxima) & dense_mx > 0).stack()
-            if (peaks.shape[0] > 1) and subdivide:  # isomers
-                peaks = peaks.reset_index()
+            if adaptive_window:
+                h, w = dense_mx.shape # row index is y and col is x
+                window_size = [max(h//2+1, window_size[0]), max(w//2+1, window_size[1])]
+            peaks = local_maxima(dense_mx, window_size=window_size)
+            raw_apexes.append(peaks)
+
+            # divide a group with multiple local maxima by saddle points
+            if (peaks.shape[0] > 1) and subdivide:  
+                peaks = peaks.reset_index() # (scan, tof, intensity)
                 # is mz resolvable?
                 # tof_indices are stored as unsigned integer
                 if (np.max(peaks["tof_indices"]) - np.min(peaks["tof_indices"])) <= tolerance:
                     proj = np.sum(dense_mx, axis=1)
-                    minima = minimum_filter1d(proj, size=17)
-                    # , mode="constant", cval=0)
+                    
+                    minima = minimum_filter1d(proj, size=window_size[0]//2)
                     # saddle point
                     split = proj[proj == minima].index.to_numpy()
 
@@ -484,7 +491,7 @@ class Frame:
                 # separate peaks by mz values
                 else:
                     proj = np.sum(dense_mx, axis=0)
-                    minima = minimum_filter1d(proj, size=5)
+                    minima = minimum_filter1d(proj, size=window_size[1]//2)
                     split = proj[proj == minima].index.to_numpy()
                     for s in range(len(split) - 1):
                         subgroup = g.loc[
@@ -517,9 +524,14 @@ class Frame:
             results += (peak_labels,)
         # include extents of each peak
         if return_extents is True:
-            peak_extents = peak_groups[["mz_values", "mobility_values"]].agg(["min", "max"])
+            peak_extents = peak_groups[["tof_indices", "scan_indices", "mz_values", "mobility_values"]].agg(["min", "max"])
             results += (peak_extents,)
 
+        if return_apex is True:
+            apex_list = pd.concat(raw_apexes).reset_index()
+            apex_list["mz_values"] = self.mz_domain[apex_list["tof_indices"]]
+            apex_list["mobility_values"] = self.mobility_domain[apex_list["scan_indices"]]
+            results += (apex_list,)
         return results
 
     # plotting methods
@@ -608,12 +620,19 @@ def export_imzML(
         intensity_array = peaks["intensity_array"]
     # pos = dataset.pos.set_index("Frame")
 
+    indices_sorted = peak_list.sort_values("mz_values").index
+    mz_array = peak_list["mz_values"].loc[indices_sorted]
+    mobility_array = peak_list["mobility_values"].loc[indices_sorted]
+
+    intensity_array = intensity_array.reindex(columns=indices_sorted)
     # write files
-    for frame in np.arange(1, dataset.data.frame_max_index):
+    for frame in tqdm(intensity_array.index):
+        # or I can do adhoc extraction here?
+        
         writer.addSpectrum(
-            mzs=peak_list["mz_values"],
+            mzs=mz_array,
             intensities=intensity_array.loc[frame],
-            mobilities=peak_list["mobility_values"],
+            mobilities=mobility_array,
             coords=dataset.pos.loc[frame],
         )
     writer.close()

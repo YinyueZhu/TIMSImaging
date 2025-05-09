@@ -1,5 +1,7 @@
 import numpy as np
+import pandas as pd
 from scipy.spatial import KDTree
+from scipy.ndimage import maximum_filter
 from numba import jit, njit
 
 from numba.typed import List
@@ -7,7 +9,7 @@ from typing import Iterable, Literal
 
 # def rms_norm(x):
 #     return x/np.std(x)
-    
+
 class CoordsGraph:
     """A class for distance-based graph in high dimensional space
     """
@@ -57,7 +59,7 @@ class CoordsGraph:
         )
 
         return group_labels
-    
+
 # traverse a graph represented as a sparse matrix
 @jit(nopython=True)
 def dfs_single(indices, indptr, visited, start):
@@ -138,3 +140,24 @@ def bfs(n_nodes, indices, indptr, count_threshold=5):
             current_label += 1
 
     return group_labels
+
+
+def local_maxima(dense_mx: pd.DataFrame, window_size=[5, 5]) -> pd.Series:
+    """Find positions and values of local maxima of an dense array  
+    `dense_mx` is a (M,N) dataframe so that the positions could be other than ordinal indices
+
+    :param dense_mx: the dense array, with axis domains
+    :type dense_mx: pd.DataFrame
+    :param window_size: size of the 2D maximum filter, defaults to [5, 5]
+    :type window_size: list, optional
+    :return: a Series of maxima values, with multiindex of their postions
+    :rtype: pd.Series
+    """
+    if isinstance(dense_mx, pd.DataFrame):
+        pass
+    else:
+        dense_mx = pd.DataFrame(dense_mx) # if input is without axis domains
+    maxima = maximum_filter(dense_mx, size=window_size)  # (M, N) 
+    maxima = dense_mx.where((dense_mx == maxima) & dense_mx > 0) # (M, N) positions other than local maxima are np.nan
+    maxima_pos = maxima.stack()  # (y,x) multiindex peaklist
+    return maxima_pos

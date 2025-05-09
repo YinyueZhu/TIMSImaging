@@ -34,7 +34,7 @@ def image(
     dataset: "MSIDataset",
     mz:slice=None,
     mobility:slice=None,
-    normalization: Literal["TIC", "RMS", "none"] = "TIC",
+    normalization: Literal["TIC", "RMS", "none"] = "none",
 ) -> Tuple[figure, ColumnDataSource]:
     """Visualize images of a dataset.
     By default it is the TIC image. If mz and mobility provided, 
@@ -61,8 +61,11 @@ def image(
         intensities = dataset.tic()
     source.data["total_intensity"] = intensities
 
-    if normalization == "TIC":
+    if normalization == "none":
         source.data["normalized"] = intensities / intensities.max()
+    elif normalization == "TIC":
+        normalized = intensities / dataset.tic()
+        source.data["normalized"] = normalized / normalized.max()
     elif normalization == "RMS":
         source.data["normalized"] = intensities / intensities.std()
 
@@ -337,6 +340,33 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
     )
     f.add_tools(hover)
     return f, source
+
+def feature_list(data):
+    source = ColumnDataSource(data)
+    columns = [
+        TableColumn(
+            field="index",
+            title="#",
+            ),
+        TableColumn(
+            field="mz_values",
+            title="m/z",
+            formatter=NumberFormatter(format="0.000"),
+        ),
+        TableColumn(
+            field="mobility_values",
+            title="1/K0",
+            formatter=NumberFormatter(format="0.000"),
+        ),
+        TableColumn(
+            field="total_intensity",
+            title="total peak intensity",
+            formatter=NumberFormatter(format="0.000"),
+        ),
+    ]
+
+    table = DataTable(source=source, columns=columns, index_position=None)
+    return table, source
 
 
 # make a function a Bokeh application
