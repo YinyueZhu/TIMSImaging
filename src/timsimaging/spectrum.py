@@ -98,6 +98,14 @@ class MSIDataset:
         intensities.name = "intensity_values"
         return intensities
 
+    def rms(self):
+        rmss = []
+        for i in range(1, dataset.data.frame_max_index):
+            intensities = dataset.data.intensity_values[dataset.data[i,"raw"]]
+            scale = np.sqrt(np.mean(np.square(intensities)))
+            rmss.append(scale)
+        return rmss
+
     def slice_image(self, mz:slice=None, mobility:slice=None)->np.ndarray:
         """Get slice image data, used for ion images.  
         Example: slice_image(mz=slice(499, 500), mobility=slice(1.0, 1.1))
@@ -398,44 +406,53 @@ class Frame:
         df = self.data
         X = self.mz_domain
         Y = self.mobility_domain
-    
+
         intensity_mx = coo_matrix((df.intensity_values, 
                 (df.scan_indices, df.tof_indices)), 
                shape=(len(Y), len(X)))
         return intensity_mx.toarray()
-        
+
     def peakPick(
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
-        window_size: Iterable[int] = [17, 7],
-        adaptive_window = False, 
-        subdivide = True,
         count_thrshold=5,  # at least 5 points for a 3D peak
+        window_size: Iterable[int] = [17, 7],
+        adaptive_window=False,
+        subdivide=True,
         sort=False,
         return_labels=False,
         return_extents=False,
         return_apex=False,
-    ) -> pd.DataFrame:
-        """2D peak-picking on a frame
-        First group intensities based on approximity in (mz, mobility) space, then detect local maxima in each group
+    ) -> Dict:
+        """
+        2D peak-picking on a frame
+        1)group intensities based on approximity in (mz, mobility) space, 
+        2)detect local maxima in each group as peaks, 
+        3)summarize m/z, ion mobility and intensity for each peak
 
-        :param tolerance: tolerance to determine neighbors, in integer indices, defaults to [2,2]
+        :param tolerance: [mobility, mz] tolerance in integer indices for step 1, two data points within the distance determined by the tolerance are neighbors, defaults to [2,2]
         :type tolerance: Iterable[int  |  float] | int | float | None, optional
         :param metric: distance metric, defaults to "euclidean"
         :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        :param window_size: window size of the maximum filter, defaults to [17, 7]
-        :type window_size: Iterable[int], optional
-        :param count_thrshold: minimum intensity count of a peak, defaults to 5
+        :param count_thrshold: minimum count of data points for a peak, defaults to 5
         :type count_thrshold: int, optional
+        :param window_size: [mobility, mz] window size of the maximum filter for step 2, defaults to [17, 7]
+        :type window_size: Iterable[int], optional
+        :param adaptive_window: if True, the function would determine the maximum filter size automatically and override `window_size`, defaults to False
+        :type adaptive_window: bool, optional
+        :param subdivide: whether to detect saddle points in a group to divide it into multiple peaks, defaults to True
+        :type subdivide: bool, optional
         :param sort: if True, sort peaks by descending total intensity, defaults to False
         :type sort: bool, optional
-        :param return_labels: if True, return group labels, defaults to False
+        :param return_labels: return group labels, defaults to False
         :type return_labels: bool, optional
-        :param return_extents: if True, return extents in each dimension of groups, defaults to False
+        :param return_extents: return the m/z and ion mobility ranges for each peak, defaults to False
         :type return_extents: bool, optional
-        :return: peak information
-        :rtype: pd.DataFrame
+        :param return_apex: return apexes m/z and ion mobility values for each peak, where peak list uses average weighted values to represent peaks, defaults to False
+        :type return_apex: bool, optional
+        :return: a dicitonary contains `peak_list`(a dataframe) and other optional results
+        :rtype: Dict
         """
 
         if self.idx_available is True:
@@ -444,7 +461,7 @@ class Frame:
             ) # coerce to float type to avoid overflow
 
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
-        
+
         print("Traversing graph...")
         group_labels = graph.group_nodes(count_thrshold)  # ndarray of (k,)
         # filter off intensities with group label=0
@@ -476,7 +493,7 @@ class Frame:
                 # tof_indices are stored as unsigned integer
                 if (np.max(peaks["tof_indices"]) - np.min(peaks["tof_indices"])) <= tolerance:
                     proj = np.sum(dense_mx, axis=1)
-                    
+
                     minima = minimum_filter1d(proj, size=window_size[0]//2)
                     # saddle point
                     split = proj[proj == minima].index.to_numpy()
@@ -518,20 +535,20 @@ class Frame:
         if sort:
             peak_list.sort_values("total_intensity", ascending=False, inplace=True)
 
-        results = (peak_list,)
+        results = {"peak_list": peak_list}
         # include group labels
         if return_labels is True:
-            results += (peak_labels,)
+            results["peak_labels"] = peak_labels
         # include extents of each peak
         if return_extents is True:
             peak_extents = peak_groups[["tof_indices", "scan_indices", "mz_values", "mobility_values"]].agg(["min", "max"])
-            results += (peak_extents,)
+            results["peak_extents"] = peak_extents
 
         if return_apex is True:
             apex_list = pd.concat(raw_apexes).reset_index()
             apex_list["mz_values"] = self.mz_domain[apex_list["tof_indices"]]
             apex_list["mobility_values"] = self.mobility_domain[apex_list["scan_indices"]]
-            results += (apex_list,)
+            results["peak_apex"] = apex_list
         return results
 
     # plotting methods

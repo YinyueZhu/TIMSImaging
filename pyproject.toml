@@ -77,9 +77,9 @@ docs = [
 
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#urls
 [project.urls]
-"Bug Tracker" = "https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/issues"
-Homepage = "https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging"
-Repository = "https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging.git"
+"Bug Tracker" = "https://github.com/YinyueZhu/TIMSImaging/issues"
+Homepage = "https://github.com/YinyueZhu/TIMSImaging"
+Repository = "https://github.com/YinyueZhu/TIMSImaging.git"
 Documentation = "https://timsimaging.readthedocs.io"
 
 [tool.setuptools]
