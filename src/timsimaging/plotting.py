@@ -481,7 +481,7 @@ def heatmap_layouts(
     ]
     peak_table = DataTable(source=peak_table_source, columns=columns)
     # when one entry is selected, call look_into_peak
-    # peak_table_source.selected.on_change("indices", look_into_peak)
+    peak_table_source.selected.on_change("indices", look_into_peak)
 
     # 1d projections
     spec1d_df = df.groupby("mz_values")["intensity_values"].sum().reset_index()
@@ -698,7 +698,7 @@ def dashboard(
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
         # peak info
         mz, mobility = peak_list.iloc[peak_idx][["mz_values", "mobility_values"]]
-        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
+        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx][["mz_values", "mobility_values"]]
 
         # pixel-wise intensity
         # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
@@ -1009,7 +1009,7 @@ def _visualize(
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
         # peak info
         mz, mobility = peak_list.iloc[peak_idx][["mz_values", "mobility_values"]]
-        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx]
+        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx][["mz_values", "mobility_values"]]
 
         # pixel-wise intensity
         # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
