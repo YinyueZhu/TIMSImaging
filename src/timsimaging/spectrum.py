@@ -100,8 +100,8 @@ class MSIDataset:
 
     def rms(self):
         rmss = []
-        for i in range(1, dataset.data.frame_max_index):
-            intensities = dataset.data.intensity_values[dataset.data[i,"raw"]]
+        for i in range(1, self.data.frame_max_index):
+            intensities = self.data.intensity_values[self.data[i,"raw"]]
             scale = np.sqrt(np.mean(np.square(intensities)))
             rmss.append(scale)
         return rmss
@@ -135,7 +135,7 @@ class MSIDataset:
         self,
         frame_indices: np.ndarray =None,
         sampling_ratio: float = 1.0,
-        intensity_threshold: float = 0.05,
+        frequency_threshold: float = 0.05,
         as_frame=False,
         seed=42,
     ):
@@ -143,8 +143,8 @@ class MSIDataset:
 
         :param as_frame: if True, return a pd.DataFrame, otherwise an Frame, defaults to False
         :type as_frame: bool, optional
-        :param intensity_threshold: Filter out intensities that appear in little fraction of pixels, defaults to 0.05
-        :type intensity_threshold: float, optional
+        :param frequency_threshold: Filter out intensities that appear in little fraction of pixels, defaults to 0.05
+        :type frequency_threshold: float, optional
         :return: _description_
         :rtype: _type_
         """
@@ -170,8 +170,8 @@ class MSIDataset:
         intensity_indices = self.data[frame_indices, "raw"]
 
         sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
-        if intensity_threshold is not None:
-            intensity_cut = self.data.intensity_min_value * n_frame * intensity_threshold
+        if frequency_threshold is not None:
+            intensity_cut = self.data.intensity_min_value * n_frame * frequency_threshold
             tof_indices, scan_indices = np.nonzero(sum_mx > intensity_cut)
         else:
             tof_indices, scan_indices = sum_mx.nonzero()
@@ -185,9 +185,9 @@ class MSIDataset:
         )
 
         # # filter out low frequent intensities
-        # if intensity_threshold is not None:
+        # if frequency_threshold is not None:
         #     mean_spec = mean_spec.loc[
-        #         lambda x: x >= self.data.intensity_min_value * intensity_threshold
+        #         lambda x: x >= self.data.intensity_min_value * frequency_threshold
         #     ]  # need improvement
 
         if as_frame:
@@ -202,7 +202,7 @@ class MSIDataset:
     def process(
         self,
         sampling_ratio=0.1,
-        intensity_threshold=0.05,
+        frequency_threshold=0.05,
         roi = None, # what if there are multiple ROIs?
         visualize=False,
         ccs_calibration=False,
@@ -212,8 +212,8 @@ class MSIDataset:
 
         :param sampling_ratio: ratio for computing the mean spectrum, defaults to 0.1
         :type sampling_ratio: float, optional
-        :param intensity_threshold: intensity threshold relative to lowest intensity in a single frame for filtering the mean spectrum, defaults to 0.05
-        :type intensity_threshold: float, optional
+        :param frequency_threshold: intensity threshold relative to lowest intensity in a single frame for filtering the mean spectrum, defaults to 0.05
+        :type frequency_threshold: float, optional
         :return: a dictionary with intensity array, peak list and coordinates
         :rtype: Dict
         """
@@ -226,7 +226,7 @@ class MSIDataset:
 
         print("Computing mean spectrum...")
         mean_spec = self.mean_spectrum(
-            sampling_ratio=sampling_ratio, intensity_threshold=intensity_threshold, frame_indices=frame_indices)
+            sampling_ratio=sampling_ratio, frequency_threshold=frequency_threshold, frame_indices=frame_indices)
                     
         peak_list, peak_extents = mean_spec.peakPick(return_extents=True, **kwargs)
         n_peak = peak_list.shape[0]
@@ -417,6 +417,7 @@ class Frame:
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
         count_thrshold=5,  # at least 5 points for a 3D peak
+        intensity_thrshold=None,
         window_size: Iterable[int] = [17, 7],
         adaptive_window=False,
         subdivide=True,
@@ -463,7 +464,7 @@ class Frame:
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
 
         print("Traversing graph...")
-        group_labels = graph.group_nodes(count_thrshold)  # ndarray of (k,)
+        group_labels = graph.group_nodes(count_thrshold=count_thrshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
@@ -532,6 +533,8 @@ class Frame:
             )
         )
         peak_list["total_intensity"] = peak_groups["intensity_values"].sum()
+
+        # np.max(peak_list["total_intensity"]) * intensity_threshold
         if sort:
             peak_list.sort_values("total_intensity", ascending=False, inplace=True)
 
@@ -617,7 +620,7 @@ def export_imzML(
         include_mobility=True,
     )
     if peaks is None:
-        mean_spec = dataset.mean_spectra(intensity_threshold=0.05)
+        mean_spec = dataset.mean_spectra(frequency_threshold=0.05)
         peak_list, peak_extents = mean_spec.peakPick(
             return_extents=True,
         )

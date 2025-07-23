@@ -15,6 +15,7 @@ from bokeh.models import (
     BoxSelectTool,
     CrosshairTool,
     ScaleBar,
+    NumericInput,
     CustomJS,
     Metric,
     Range1d,
@@ -344,10 +345,10 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
 def feature_list(data):
     source = ColumnDataSource(data)
     columns = [
-        TableColumn(
-            field="index",
-            title="#",
-            ),
+        # TableColumn(
+        #     field="index",
+        #     title="#",
+        #     ),
         TableColumn(
             field="mz_values",
             title="m/z",
@@ -364,9 +365,45 @@ def feature_list(data):
             formatter=NumberFormatter(format="0.000"),
         ),
     ]
+    filtered_source = ColumnDataSource(data.copy())
+    table = DataTable(source=filtered_source, columns=columns, index_position=0)
+    
+    intensity_threshold = NumericInput(title="Relative intensity threshold", low=0, high=100, value=0, model='float')
 
-    table = DataTable(source=source, columns=columns, index_position=None)
-    return table, source
+    intensity_filter_callback = CustomJS(args=dict(source=source, filtered_source=filtered_source), code="""
+        const data = source.data;
+        const mz = data['mz_values'];
+        const mobility = data['mobility_values'];
+        const intensity = data['total_intensity'];
+
+        const percent = parseFloat(cb_obj.value);
+
+        if (isNaN(percent) || percent < 0 || percent > 100) {
+            return;
+        }
+
+        // Compute threshold
+        const max = Math.max(...intensity);
+        const threshold = (percent / 100) * max;
+
+        const new_mz = [];
+        const new_mobility = [];
+        const new_intensity = [];
+
+        for (let i = 0; i < intensity.length; i++) {
+            if (intensity[i] >= threshold) {
+                new_mz.push(mz[i]);  
+                new_mobility.push(mobility[i]);              
+                new_intensity.push(intensity[i]);
+            }
+        }
+
+        filtered_source.data = { 'mz_values': new_mz, 'mobility_values': new_mobility, 'total_intensity': new_intensity };
+        filtered_source.change.emit();
+    """)
+
+    intensity_threshold.js_on_change('value', intensity_filter_callback)
+    return column(intensity_threshold, table), source
 
 
 # make a function a Bokeh application
