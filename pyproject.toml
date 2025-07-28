@@ -54,6 +54,7 @@ dependencies = [
     "numpy==1.26.4",
     "pandas==2.2.1",
     "scipy==1.11.4",
+    "sklearn==1.4.2",
     "pyimzml @ git+https://github.com/gtluu/pyimzML.git@fe24388984aa96a18ef2ed54927ec05d6701cc04",
     "pyteomics==4.7.3",
 ]
