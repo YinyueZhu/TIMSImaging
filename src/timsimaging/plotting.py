@@ -33,12 +33,12 @@ __all__ = ["image", "scatterplot", "heatmap", "mobilogram", "heatmap_layouts", "
 
 def image(
     dataset: "MSIDataset",
-    mz:slice=None,
-    mobility:slice=None,
+    mz: slice = None,
+    mobility: slice = None,
     normalization: Literal["TIC", "RMS", "none"] = "none",
 ) -> Tuple[figure, ColumnDataSource]:
     """Visualize images of a dataset.
-    By default it is the TIC image. If mz and mobility provided, 
+    By default it is the TIC image. If mz and mobility provided,
     all intensities within the slices would be aggregated across pixels
 
     :param dataset: the dataset to visualize
@@ -178,9 +178,9 @@ def scatterplot(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     color_bar = spec2d.construct_color_bar()
     f.add_layout(color_bar, "right")
 
-    crosshair = CrosshairTool(line_color='white')
+    crosshair = CrosshairTool(line_color="white")
     f.add_tools(crosshair)
-    
+
     hover = HoverTool(
         renderers=[spec2d],
         tooltips=[
@@ -240,7 +240,7 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     color_bar = spec2d.construct_color_bar()
     f.add_layout(color_bar, "right")
 
-    crosshair = CrosshairTool(line_color='white')
+    crosshair = CrosshairTool(line_color="white")
     f.add_tools(crosshair)
 
     hover = HoverTool(
@@ -342,6 +342,7 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
     f.add_tools(hover)
     return f, source
 
+
 def feature_list(data):
     source = ColumnDataSource(data)
     columns = [
@@ -367,11 +368,21 @@ def feature_list(data):
     ]
     filtered_source = ColumnDataSource(data.copy())
     table = DataTable(source=filtered_source, columns=columns, index_position=0)
-    
-    intensity_threshold = NumericInput(title="Relative intensity threshold", low=0, high=100, value=0, model='float')
 
-    intensity_filter_callback = CustomJS(args=dict(source=source, filtered_source=filtered_source), code="""
+    intensity_threshold = NumericInput(
+        title="Relative intensity threshold",
+        placeholder="0-100% to the max intensity",
+        low=0,
+        high=100,
+        value=0,
+        mode="float",
+    )
+
+    intensity_filter_callback = CustomJS(
+        args=dict(source=source, filtered_source=filtered_source),
+        code="""
         const data = source.data;
+        const indices = data['index'];
         const mz = data['mz_values'];
         const mobility = data['mobility_values'];
         const intensity = data['total_intensity'];
@@ -386,24 +397,27 @@ def feature_list(data):
         const max = Math.max(...intensity);
         const threshold = (percent / 100) * max;
 
+        const new_indices = [];
         const new_mz = [];
         const new_mobility = [];
         const new_intensity = [];
 
         for (let i = 0; i < intensity.length; i++) {
             if (intensity[i] >= threshold) {
+                new_indices.push(indices[i]);
                 new_mz.push(mz[i]);  
                 new_mobility.push(mobility[i]);              
                 new_intensity.push(intensity[i]);
             }
         }
 
-        filtered_source.data = { 'mz_values': new_mz, 'mobility_values': new_mobility, 'total_intensity': new_intensity };
+        filtered_source.data = { 'index': new_indices, 'mz_values': new_mz, 'mobility_values': new_mobility, 'total_intensity': new_intensity };
         filtered_source.change.emit();
-    """)
+    """,
+    )
 
-    intensity_threshold.js_on_change('value', intensity_filter_callback)
-    return column(intensity_threshold, table), source
+    intensity_threshold.js_on_change("value", intensity_filter_callback)
+    return column(intensity_threshold, table), filtered_source
 
 
 # make a function a Bokeh application
@@ -436,11 +450,10 @@ def heatmap_layouts(
     df = frame.data
     width, height = frame.resolution
     if peak_list is None:
-        peak_list, group_labels, peak_extents = frame.peakPick(
-            return_labels=True,
+        peak_list, peak_extents = frame.peakPick(
             return_extents=True,
             **kwargs,
-        )
+        ).values()
 
     heatmap_figure, heatmap_source = heatmap(frame)
 
@@ -488,35 +501,26 @@ def heatmap_layouts(
     peak_checkbox = Checkbox(label="Show peaks", active=False)
     peak_checkbox.on_change("active", plot_peak_box)
 
+    debug_div = Div(
+        text="""
+        x_range:
+        y_range:
+    """
+    )
+    # peak list table
+    peak_table, peak_table_source = feature_list(peak_list)
+
     # callback for centering the view of a peak
     def look_into_peak(attr, old, new):
-        peak_idx = new[0]
-        x, y, w, h = peak_rect_data.iloc[peak_idx]
+        select_idx = new[0]
+        peak_idx = peak_table_source.data['index'][select_idx]
+        x, y, w, h = peak_rect_data.loc[peak_idx]
         heatmap_figure.x_range.start = x - 0.5 * h * width / height * 1.5
         heatmap_figure.x_range.end = x + 0.5 * h * width / height * 1.5
         heatmap_figure.y_range.start = y - 0.5 * h * 1.5
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
+        debug_div.text = f"selected index: {select_idx}, original index: {peak_idx}"
 
-    # peak list table
-    peak_table_source = ColumnDataSource(peak_list)
-    columns = [
-        TableColumn(
-            field="mz_values",
-            title="m/z",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="mobility_values",
-            title="1/K0",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="total_intensity",
-            title="peak volume",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-    ]
-    peak_table = DataTable(source=peak_table_source, columns=columns)
     # when one entry is selected, call look_into_peak
     peak_table_source.selected.on_change("indices", look_into_peak)
 
@@ -530,13 +534,6 @@ def heatmap_layouts(
     mob_figure, mob_source = mobilogram(mob_df, transposed=True)
     mob_figure.y_range = heatmap_figure.y_range
     mob_figure.width = heatmap_figure.width // 2
-
-    range_div = Div(
-        text="""
-        x_range:
-        y_range:
-    """
-    )
 
     # callback for 1D projecting current range
     def range_callback(attr, old, new):
@@ -553,7 +550,7 @@ def heatmap_layouts(
         spec1d_source.data = df_view.groupby("mz_values")["intensity_values"].sum().reset_index()
 
         mob_source.data = df_view.groupby("mobility_values")["intensity_values"].sum().reset_index()
-        range_div.text = f"""
+        debug_div.text = f"""
                             <h3>x_range: {heatmap_figure.x_range.start: .4f}-{heatmap_figure.x_range.end: .4f}</h3>
                             <h3>y_range: {heatmap_figure.y_range.start: .4f}-{heatmap_figure.y_range.end: .4f}</h3>
                             <h3>2d data length: {df_view.shape[0]}</h3>
@@ -595,7 +592,7 @@ def heatmap_layouts(
                     [spec1d_figure, None],
                 ]
             ),
-            column([peak_checkbox, grid_checkbox, peak_table, range_div]),
+            column([peak_checkbox, grid_checkbox, peak_table, debug_div]),
         ],
         sizing_mode="scale_width",
     )
@@ -726,16 +723,21 @@ def dashboard(
     peak_checkbox = Checkbox(label="Show peaks", active=False)
     peak_checkbox.on_change("active", plot_peak_box)
 
+    # peak table
+    peak_table, peak_table_source = feature_list(peak_list)
     def look_into_peak(attr, old, new):
-        peak_idx = new[0]
-        x, y, w, h = peak_rect_data.iloc[peak_idx]
+        select_idx = new[0]
+        peak_idx = peak_table_source.data['index'][select_idx]
+        x, y, w, h = peak_rect_data.loc[peak_idx]
         heatmap_figure.x_range.start = x - 0.5 * h * width / height * 1.5
         heatmap_figure.x_range.end = x + 0.5 * h * width / height * 1.5
         heatmap_figure.y_range.start = y - 0.5 * h * 1.5
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
         # peak info
-        mz, mobility = peak_list.iloc[peak_idx][["mz_values", "mobility_values"]]
-        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx][["mz_values", "mobility_values"]]
+        mz, mobility = peak_list.loc[peak_idx][["mz_values", "mobility_values"]]
+        mz_min, mz_max, mob_min, mob_max = peak_extents.loc[peak_idx][
+            ["mz_values", "mobility_values"]
+        ]
 
         # pixel-wise intensity
         # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
@@ -750,31 +752,30 @@ def dashboard(
             image_source.data["normalized"] = peak_intensities / peak_intensities.std()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"
 
-    peak_table_source = ColumnDataSource(peak_list)
-    columns = [
-        TableColumn(
-            field="mz_values",
-            title="m/z",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="mobility_values",
-            title="1/K0",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="total_intensity",
-            title="total peak intensity",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        # TableColumn(
-        #     field="ccs_values",
-        #     title="collision cross section(CCS)",
-        #     formatter=NumberFormatter(format="0.000"),
-        # ),
-    ]
+    # peak_table_source = ColumnDataSource(peak_list)
+    # columns = [
+    #     TableColumn(
+    #         field="mz_values",
+    #         title="m/z",
+    #         formatter=NumberFormatter(format="0.000"),
+    #     ),
+    #     TableColumn(
+    #         field="mobility_values",
+    #         title="1/K0",
+    #         formatter=NumberFormatter(format="0.000"),
+    #     ),
+    #     TableColumn(
+    #         field="total_intensity",
+    #         title="total peak intensity",
+    #         formatter=NumberFormatter(format="0.000"),
+    #     ),
+    #     # TableColumn(
+    #     #     field="ccs_values",
+    #     #     title="collision cross section(CCS)",
+    #     #     formatter=NumberFormatter(format="0.000"),
+    #     # ),
+    # ]
 
-    peak_table = DataTable(source=peak_table_source, columns=columns, width=580)
     # when one entry is selected, call look_into_peak
     peak_table_source.selected.on_change("indices", look_into_peak)
 
@@ -956,6 +957,7 @@ def _visualize(
     grid_checkbox = Checkbox(label="Show grid lines", active=True)
     grid_checkbox.on_change("active", show_grid_line)
 
+    # spectrum and mobilogram
     df = mean_spectrum.data
     spec1d_df = df.groupby("mz_values")["intensity_values"].sum().reset_index()
     spec1d_figure, spec1d_source = spectrum(spec1d_df)
@@ -1000,7 +1002,7 @@ def _visualize(
 
     image_source.selected.on_change("indices", box_select_callback)
 
-    # peak list
+    # peak centering
     peak_rect_data = pd.DataFrame()
     peak_rect_data["x"] = 0.5 * (
         peak_extents["mz_values", "min"] + peak_extents["mz_values", "max"]
@@ -1036,17 +1038,22 @@ def _visualize(
     peak_checkbox = Checkbox(label="Show peaks", active=False)
     peak_checkbox.on_change("active", plot_peak_box)
 
+    # peak list
+    peak_table, peak_table_source = feature_list(peak_list)
+
     def look_into_peak(attr, old, new):
-        # index start from 0
-        peak_idx = new[0]
-        x, y, w, h = peak_rect_data.iloc[peak_idx]
+        select_idx = new[0]
+        peak_idx = peak_table_source.data['index'][select_idx]
+        x, y, w, h = peak_rect_data.loc[peak_idx]
         heatmap_figure.x_range.start = x - 0.5 * h * width / height * 1.5
         heatmap_figure.x_range.end = x + 0.5 * h * width / height * 1.5
         heatmap_figure.y_range.start = y - 0.5 * h * 1.5
         heatmap_figure.y_range.end = y + 0.5 * h * 1.5
         # peak info
-        mz, mobility = peak_list.iloc[peak_idx][["mz_values", "mobility_values"]]
-        mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[peak_idx][["mz_values", "mobility_values"]]
+        mz, mobility = peak_list.loc[peak_idx][["mz_values", "mobility_values"]]
+        mz_min, mz_max, mob_min, mob_max = peak_extents.loc[peak_idx][
+            ["mz_values", "mobility_values"]
+        ]
 
         # pixel-wise intensity
         # image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
@@ -1058,28 +1065,9 @@ def _visualize(
         image_source.data["normalized"] = peak_intensities / peak_intensities.max()
         image_figure.title.text = f"MS Image m/z: {mz:.4f} 1/K_0: {mobility:.3f}"
 
-    peak_table_source = ColumnDataSource(peak_list)
-    columns = [
-        TableColumn(
-            field="mz_values",
-            title="m/z",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="mobility_values",
-            title="1/K0",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-        TableColumn(
-            field="total_intensity",
-            title="total peak intensity",
-            formatter=NumberFormatter(format="0.000"),
-        ),
-    ]
-
-    peak_table = DataTable(source=peak_table_source, columns=columns, width=580)
     peak_table_source.selected.on_change("indices", look_into_peak)
 
+    # dynamic zooming
     def range_callback(attr, old, new):
         # current data
         df_view = df.loc[
@@ -1100,7 +1088,7 @@ def _visualize(
     heatmap_figure.y_range.on_change("start", range_callback)
     heatmap_figure.y_range.on_change("end", range_callback)
 
-    # compute CCS
+    # compute CCS(to be changed to always compute)
     ccs_button = Button(label="Compute CCS value", button_type="success")
 
     def compute_ccs():
