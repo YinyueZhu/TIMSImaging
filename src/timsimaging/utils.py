@@ -64,7 +64,7 @@ class CoordsGraph:
 @jit(nopython=True)
 def dfs_single(indices, indptr, visited, start):
     stack = [start]
-    subgraph = List()
+    subgraph = list()
     while stack:
         node = stack.pop()
         if not visited[node]:

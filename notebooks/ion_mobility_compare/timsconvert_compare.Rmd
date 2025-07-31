@@ -7,7 +7,7 @@ output: html_document
 
 ### Introduction
 
-In this vignette, we will compare TIMSImaging workflow with existing method that ignores ion mobility in terms of ion image quality. TIMSCONVERT is an open-source tool to convert general Bruker raw data into open formats. Specifically, it outputs imzML for MALDI-TIMS-MS imaging data, either with ion mobility or not. However, it does not do any pre-processing.
+In this vignette, we will compare TIMSImaging workflow with existing method that ignores ion mobility in terms of ion image quality. TIMSCONVERT is an open-source tool to convert general Bruker raw data into open formats. Specifically, it outputs imzML for MALDI-TIMS-MS imaging data, either with ion mobility or not. However, it does not do any pre-processing. ![](workflow_compare.png)
 
 ### Process data from TIMSCONVERT
 
