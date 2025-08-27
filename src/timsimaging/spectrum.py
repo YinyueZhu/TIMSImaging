@@ -70,25 +70,31 @@ class MSIDataset:
             mobility_domain=self.data.mobility_values,
         )
 
-    def ccs_calibrator(self):
-        """Generate a CCS calibrater, mapping 1/K_0 -> CCS, using Calibrants(not Mason-Shamp equation)
+    def ccs_calibrator(self, method: Literal["linear", "internal"] = "linear"):
+        """Generate a CCS calibrater, mapping 1/K_0 -> CCS, using either a linear model or Bruker's internal method.
+        The linear model is based on refernce CCS from Calibrants(not Mason-Shamp equation) recorded in the raw data, and Bruker's method is from the dll that takes 1/K, charge and m/z as inputs
 
-        :return: calibrator
-        :rtype: CCS_calibration
+        :return: a calibrator with a `transform` method.
+        :rtype: _type_
         """
-        from .calibration import CCS_calibration
+        from .calibration import CCS_calibration, CCS_Bruker_Calibration
 
-        polarity = self.cali_info["KeyPolarity"].iloc[0]
-        # calibrants in chemical formula
-        calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
-        calibrants = calibrants.split("\x00")[:-1]
-        # x
-        raw_mob = struct.unpack(
-            f"{len(calibrants)}d",
-            self.cali_info.at["MobilitiesPreviousCalibration", "Value"],
-        )
-        # model x->y
-        calibrator = CCS_calibration(calibrants, raw_mob, polarity)
+        if method=="linear":
+            polarity = self.cali_info["KeyPolarity"].iloc[0]
+            # calibrants in chemical formula
+            calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
+            calibrants = calibrants.split("\x00")[:-1]
+            # x
+            raw_mob = struct.unpack(
+                f"{len(calibrants)}d",
+                self.cali_info.at["MobilitiesPreviousCalibration", "Value"],
+            )
+            # model x->y
+            calibrator = CCS_calibration(calibrants, raw_mob, polarity)
+        elif method=="internal":
+            calibrator = CCS_Bruker_Calibration()
+        else:
+            raise NotImplementedError("Method not implemented!")
         return calibrator
 
     def tic(self) -> pd.Series:
@@ -556,7 +562,7 @@ class Frame:
             )
         )
         peak_list["total_intensity"] = peak_groups["intensity_values"].sum()
-        #peak_list = peak_list.reset_index()
+        # peak_list = peak_list.reset_index()
         if sort:
             peak_list.sort_values("total_intensity", ascending=False, inplace=True)
 
@@ -569,7 +575,7 @@ class Frame:
             peak_extents = peak_groups[
                 ["tof_indices", "scan_indices", "mz_values", "mobility_values"]
             ].agg(["min", "max"])
-            #peak_extents = peak_extents.reset_index()
+            # peak_extents = peak_extents.reset_index()
             results["peak_extents"] = peak_extents
 
         if return_apex is True:
@@ -666,9 +672,11 @@ def export_imzML(
     # pos = dataset.pos.set_index("Frame")
 
     indices_sorted = peak_list.sort_values("mz_values").index
-    mz_array = peak_list["mz_values"].loc[indices_sorted]
-    mobility_array = peak_list["mobility_values"].loc[indices_sorted]
-
+    # mz_array = peak_list["mz_values"].loc[indices_sorted]
+    # mobility_array = peak_list["mobility_values"].loc[indices_sorted]
+    mz_array, mobility_array = (
+        peak_list.loc[indices_sorted, ["mz_values", "mobility_values"]].to_numpy().T
+    )
     intensity_array = intensity_array.reindex(columns=indices_sorted)
     # write files
     for frame in tqdm(intensity_array.index):
@@ -676,7 +684,7 @@ def export_imzML(
 
         writer.addSpectrum(
             mzs=mz_array,
-            intensities=intensity_array.loc[frame],
+            intensities=intensity_array.loc[frame].to_numpy(),
             mobilities=mobility_array,
             coords=dataset.pos.loc[frame],
         )

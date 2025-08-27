@@ -4,6 +4,7 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 import pandas as pd
 
+
 # tuning mix CCS reference
 # Stow, S. M., et al. (2017) Anal Chem 89(17): 9048-9055.
 
@@ -88,7 +89,7 @@ ccs_ref = {
 
 buffer_mass = 28.013406
 
-
+# A simple linear model
 class CCS_calibration:
     def __init__(self, calibrants, raw_mob, polarity="+", buffer_mass=buffer_mass):
         if polarity == "+":
@@ -113,3 +114,24 @@ class CCS_calibration:
         reduced_mass = (1/mass+1/self.buffer_mass)**0.5
         X = np.array(mobility)*reduced_mass
         return self.model.predict(X.reshape(-1,1))
+
+# Bruker's internal calibration
+import os
+import ctypes
+from alphatims.bruker import BRUKER_DLL_FILE_NAME
+
+class CCS_Bruker_Calibration:
+    def __init__(self) -> None:
+        bruker_dll = ctypes.cdll.LoadLibrary(os.path.realpath(BRUKER_DLL_FILE_NAME))  # or libtimsdata.so on Linux
+
+        bruker_dll.tims_oneoverk0_to_ccs_for_mz.argtypes = [ctypes.c_double, ctypes.c_int, ctypes.c_double] #1/K_0, charge, mz
+        bruker_dll.tims_oneoverk0_to_ccs_for_mz.restype = ctypes.c_double
+        self.handle = bruker_dll
+    def transform(self, mz, mobility, charge=1):
+        mz = np.array(mz)
+        mobility = np.array(mobility)
+        result = np.empty(len(mz), dtype=np.float64)
+        for i in range(len(mz)):
+            result[i] = self.handle.tims_oneoverk0_to_ccs_for_mz(mobility[i], charge, mz[i])
+        return result
+
