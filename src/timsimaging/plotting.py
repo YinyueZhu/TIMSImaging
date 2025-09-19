@@ -417,7 +417,7 @@ def feature_list(data):
     )
 
     intensity_threshold.js_on_change("value", intensity_filter_callback)
-    return column(intensity_threshold, table), filtered_source
+    return column([intensity_threshold, table], aspect_ratio=1), filtered_source
 
 
 # make a function a Bokeh application
@@ -1150,7 +1150,7 @@ def _visualize(
     # Assign the Python callback to the button
     export_button.on_click(export_csv)
 
-    layouts = layout(
+    layouts = gridplot(
         [
             [image_figure, heatmap_figure, mob_figure],
             [
@@ -1167,6 +1167,6 @@ def _visualize(
                 ),
             ],
         ],
-        sizing_mode="scale_width",
+        sizing_mode="fixed",
     )
     return layouts
