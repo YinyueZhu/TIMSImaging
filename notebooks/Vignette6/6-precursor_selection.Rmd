@@ -1,0 +1,202 @@
+---
+title: "precursor_selection"
+author: "Yinyue Zhu"
+date: "2025-09-02"
+output: html_document
+---
+
+```{r}
+library(Cardinal)
+library(nlme)
+# library(INLA)
+library(spaMM)
+```
+
+```{r}
+mse <- readMSIData("laura_gordon.imzML")
+mse
+```
+
+```{r define region}
+#mse <- subsetPixels(mse, x>120 , y>100)
+coords <- coord(mse)
+pixel_label <- ifelse(coords$x > 200 & coords$y > 100, "media", "culture")
+pData(mse)$label <- factor(pixel_label)
+pData(mse)
+```
+
+```{r create dataframe}
+m <- 655
+i <- findInterval(m, mz(mse))+1
+intensity <- spectraData(mse)$intensity[i,]
+df <- data.frame(
+  intensity = intensity,
+  label = pData(mse)$label,
+  x = pData(mse)$x,
+  y = pData(mse)$y
+)
+df$label <- relevel(df$label, ref="media")
+df
+```
+non-spatial model
+```{r fit the model}
+model <- fitme(
+    intensity ~ label,
+    data = df,
+    method = "REML",
+)
+summary(model)
+```
+loop over all features
+```{r}
+mz_values <- mz(mse)
+
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  # 1. Extract intensity vector for the i-th m/z
+  intensity_i <- spectraData(mse)$intensity[i, ]
+  
+  # 2. Create a small data frame for this feature
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse)$label,
+    x = pData(mse)$x,
+    y = pData(mse)$y
+  )
+  #sub_df$label <- relevel(sub_df$label, ref="media")
+  # 3. Fit the mixed-effects model
+  model <- tryCatch({
+    lm(Intensity ~ label, data=sub_df)
+  }, error = function(e) NULL)
+  
+  # 4. Extract results if successful
+  if (!is.null(model)) {
+    coefs <- fixed.effects(model)
+    pvals <- summary.HLfit(model, details=c(p_value=TRUE), verbose=FALSE)[['beta_table']][2,4]
+    #random_sd <- as.numeric(VarCorr(model)[1, "StdDev"])
+    residual_sd <- as.numeric(VarCorr(model)[1, "StdDev"])
+    
+    return(data.frame(
+      mz = mz_values[i],
+      intercept = coefs[1],
+      label_effect = coefs[2],
+      p_value = pvals
+      #residual_sd = residual_sd
+    ))
+  } else {
+    return(NULL)
+  }
+})
+
+fit_results_df <- do.call(rbind, fit_results)
+```
+intercept+label<?
+```{r}
+mz_values <- mz(mse)
+
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  # 1. Extract intensity vector for the i-th m/z
+  intensity_i <- spectraData(mse)$intensity[i, ]
+
+  # 2. Create a small data frame for this feature
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse)$label,
+    x = coord(mse)$x,
+    y = coord(mse)$y
+  )
+  return(length(sub_df))
+})
+```
+
+```{r viz}
+library(ggplot2)
+
+fit_results_df$neg_log10_p <- -log10(fit_results_df$p_value)
+ggplot(fit_results_df, aes(x = label_effect, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Volcano Plot of m/z Features",
+    x = "Effect Size (Label B vs A)",
+    y = "-log10(p-value)"
+  ) +
+  theme_minimal()
+```
+spatial correlation model
+```{r}
+model <- fitme(
+    intensity ~ label + Matern(1|x+y),
+    data = df,
+)
+summary(model)
+```
+
+```{r}
+mesh <- inla.mesh.2d(loc = cbind(df$x, df$y), max.edge = c(1, 2))
+matern_model <- inla.spde2.matern(mesh, alpha = 2)
+fit <- fitme(intensity ~ label + IMRF(1 | x + y, model = matern_model), 
+             data = df,
+             control.dist = list(
+               IMRF = list(lower = c(kappa = 1e-3), upper = c(kappa = 10))
+  ))
+summary(fit)
+```
+
+```{r test on a subset}
+mse_subset <- subset(mse, 400<mz &mz <700, x>120 & y>100)
+#mse_subset <- summarizeFeatures(mse_subset)
+#feature_idx <- order(fData(mse_subset)$mean, decreasing=TRUE)[1:10]
+
+coords <- coord(mse_subset)
+pixel_label <- ifelse(coords$x > 200 & coords$y > 100, "media", "culture")
+pData(mse_subset)$label <- factor(pixel_label)
+pData(mse_subset)
+```
+
+```{r}
+mz_values <- mz(mse)
+
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  # 1. Extract intensity vector for the i-th m/z
+  intensity_i <- spectraData(mse)$intensity[i, ]
+  
+  # 2. Create a small data frame for this feature
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse)$label,
+    x = coord(mse)$x,
+    y = coord(mse)$y
+  )
+  sub_df$label <- relevel(sub_df$label, ref="media")
+  # 3. Fit the mixed-effects model
+  model <- tryCatch({
+    fitme(intensity ~ label,
+          data = sub_df,
+          method = "REML")
+  }, error = function(e) NULL)
+  
+  # 4. Extract results if successful
+  if (!is.null(model)) {
+    coefs <- fixed.effects(model)
+    stats <- summary.HLfit(model, details=c(p_value="Wald"),
+                           verbose=FALSE)[['beta_table']]
+    
+    #random_sd <- as.numeric(VarCorr(model)[1, "StdDev"])
+    #residual_sd <- as.numeric(VarCorr(model)[1, "StdDev"])
+    
+    return(data.frame(
+      mz = mz_values[i],
+      intercept = coefs[1],
+      label_effect = coefs[2],
+      t_value = stats[2,3],
+      p_value = stats[2,4]
+    ))
+  } else {
+    return(NULL)
+  }
+})
+fit_results_df <- do.call(rbind, fit_results)
+fit_results_df$neg_log10_p <- -log10(fit_results_df$p_value)
+fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect/fit_results_df)$intercept)
+```

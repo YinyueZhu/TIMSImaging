@@ -35,6 +35,8 @@ def image(
     dataset: "MSIDataset",
     mz: slice = None,
     mobility: slice = None,
+    i: int = None,
+    results = None,
     normalization: Literal["TIC", "RMS", "none"] = "none",
 ) -> Tuple[figure, ColumnDataSource]:
     """Visualize images of a dataset.
@@ -58,6 +60,8 @@ def image(
     if mz is not None or mobility is not None:
         indices = dataset.data[:, mobility, 0, mz, "raw"]
         intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
+    elif results is not None and isinstance(i, int):
+        intensities = results["intensity_array"].loc[:, i]
     else:
         intensities = dataset.tic()
     source.data["total_intensity"] = intensities
@@ -417,7 +421,7 @@ def feature_list(data):
     )
 
     intensity_threshold.js_on_change("value", intensity_filter_callback)
-    return column(intensity_threshold, table), filtered_source
+    return column([intensity_threshold, table], aspect_ratio=1), filtered_source
 
 
 # make a function a Bokeh application
@@ -1150,7 +1154,7 @@ def _visualize(
     # Assign the Python callback to the button
     export_button.on_click(export_csv)
 
-    layouts = layout(
+    layouts = gridplot(
         [
             [image_figure, heatmap_figure, mob_figure],
             [
@@ -1167,6 +1171,6 @@ def _visualize(
                 ),
             ],
         ],
-        sizing_mode="scale_width",
+        sizing_mode="fixed",
     )
     return layouts
