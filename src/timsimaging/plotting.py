@@ -35,6 +35,8 @@ def image(
     dataset: "MSIDataset",
     mz: slice = None,
     mobility: slice = None,
+    i: int = None,
+    results = None,
     normalization: Literal["TIC", "RMS", "none"] = "none",
 ) -> Tuple[figure, ColumnDataSource]:
     """Visualize images of a dataset.
@@ -58,6 +60,8 @@ def image(
     if mz is not None or mobility is not None:
         indices = dataset.data[:, mobility, 0, mz, "raw"]
         intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
+    elif results is not None and isinstance(i, int):
+        intensities = results["intensity_array"].loc[:, i]
     else:
         intensities = dataset.tic()
     source.data["total_intensity"] = intensities

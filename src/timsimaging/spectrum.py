@@ -671,13 +671,12 @@ def export_imzML(
         intensity_array = peaks["intensity_array"]
     # pos = dataset.pos.set_index("Frame")
 
-    indices_sorted = peak_list.sort_values("mz_values").index
-    # mz_array = peak_list["mz_values"].loc[indices_sorted]
-    # mobility_array = peak_list["mobility_values"].loc[indices_sorted]
-    mz_array, mobility_array = (
-        peak_list.loc[indices_sorted, ["mz_values", "mobility_values"]].to_numpy().T
-    )
-    intensity_array = intensity_array.reindex(columns=indices_sorted)
+    # indices_sorted = peak_list.sort_values("mz_values").index
+    indices_sorted = np.argsort(peak_list["mz_values"])
+
+    mz_array = peak_list["mz_values"].to_numpy()[indices_sorted]
+    mobility_array = peak_list["mobility_values"].to_numpy()[indices_sorted]
+    intensity_array = intensity_array.iloc[:, indices_sorted]
     # write files
     for frame in tqdm(intensity_array.index):
         # or I can do adhoc extraction here?
