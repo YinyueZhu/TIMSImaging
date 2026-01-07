@@ -60,10 +60,14 @@ def image(
     if mz is not None or mobility is not None:
         indices = dataset.data[:, mobility, 0, mz, "raw"]
         intensities = dataset.data.bin_intensities(indices, axis=["rt_values"])[1:]
+        title = f"mz={mz.start:.4f}-{mz.stop:.4f}, 1/K_0={mobility.start:.3f}-{mobility.stop:.3f}"
     elif results is not None and isinstance(i, int):
-        intensities = results["intensity_array"].loc[:, i]
+        intensities = results["intensity_array"].iloc[:, i]
+        mz, mobility = results["peak_list"].iloc[i][["mz_values", "mobility_values"]]
+        title = f"mz={mz:.4f}, 1/K_0={mobility:.3f}"
     else:
         intensities = dataset.tic()
+        title = "TIC image"
     source.data["total_intensity"] = intensities
 
     if normalization == "none":
@@ -75,7 +79,7 @@ def image(
         source.data["normalized"] = intensities / intensities.std()
 
     f = figure(
-        title="Ion Image",
+        title=title,
         match_aspect=True,
         # tools="pan,wheel_zoom,box_select,tap,hover,save,reset",
         toolbar_location="right",
@@ -212,9 +216,11 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     width, height = frame.resolution
 
     f = figure(
-        title="2D Spectrogram",
+        title=r"m/z vs 1/K_0 heatmap",
         x_range=(frame.mz_domain.min(), frame.mz_domain.max()),
         y_range=(frame.mobility_domain.min(), frame.mobility_domain.max()),
+        x_axis_label="m/z",
+        y_axis_label="1/K_0",
         toolbar_location="right",
         background_fill_color="black",
         aspect_ratio=1,
@@ -270,7 +276,7 @@ def spectrum(data: pd.DataFrame) -> Tuple[figure, ColumnDataSource]:
     """
     source = ColumnDataSource(data)
     f = figure(
-        title="1D spectrum",
+        title="MS1 spectrum",
         toolbar_location="right",
         x_axis_label="m/z",
         y_axis_label="intensity",
@@ -1154,7 +1160,7 @@ def _visualize(
     # Assign the Python callback to the button
     export_button.on_click(export_csv)
 
-    layouts = gridplot(
+    layouts = layout(
         [
             [image_figure, heatmap_figure, mob_figure],
             [

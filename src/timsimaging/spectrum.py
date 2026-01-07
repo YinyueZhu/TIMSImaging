@@ -209,9 +209,13 @@ class MSIDataset:
                 mobility_domain=self.data.mobility_values,
             )
 
-    def integrate_intensity(self, peak_list: pd.DataFrame, peak_extents: pd.DataFrame):
+    def integrate_intensity(self, peak_list: pd.DataFrame, peak_extents: pd.DataFrame, roi=None):
         n_peak = peak_list.shape[0]
-        frame_indices = np.arange(1, self.data.frame_max_index)
+        if roi is not None:
+            assert roi in self.rois
+            frame_indices = self.rois[roi]
+        else:
+            frame_indices = np.arange(1, self.data.frame_max_index)        
         # if isinstance(intensity_threshold, float):
         # np.max(peak_list["total_intensity"]) * intensity_threshold
         # use dataframe for missing values
@@ -273,7 +277,7 @@ class MSIDataset:
             indices = peak_list["total_intensity"] > intensity_cut
             peak_list = peak_list.loc[indices]
             peak_extents = peak_extents.loc[indices]
-        intensity_array = self.integrate_intensity(peak_list, peak_extents)
+        intensity_array = self.integrate_intensity(peak_list, peak_extents, roi)
 
         # intensity_array.fillna(0.0, inplace=True)
 
