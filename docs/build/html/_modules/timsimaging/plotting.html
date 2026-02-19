@@ -1,0 +1,1262 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>timsimaging.plotting &mdash; timsimaging 0.0.1-dev documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=03180e26"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            timsimaging
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">timsimaging</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">timsimaging.plotting</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for timsimaging.plotting</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.document</span><span class="w"> </span><span class="kn">import</span> <span class="n">Document</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.layouts</span><span class="w"> </span><span class="kn">import</span> <span class="n">column</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">layout</span><span class="p">,</span> <span class="n">gridplot</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Button</span><span class="p">,</span>
+    <span class="n">Checkbox</span><span class="p">,</span>
+    <span class="n">ColumnDataSource</span><span class="p">,</span>
+    <span class="n">DataTable</span><span class="p">,</span>
+    <span class="n">Div</span><span class="p">,</span>
+    <span class="n">HoverTool</span><span class="p">,</span>
+    <span class="n">NumberFormatter</span><span class="p">,</span>
+    <span class="n">TableColumn</span><span class="p">,</span>
+    <span class="n">TapTool</span><span class="p">,</span>
+    <span class="n">WheelZoomTool</span><span class="p">,</span>
+    <span class="n">BoxSelectTool</span><span class="p">,</span>
+    <span class="n">CrosshairTool</span><span class="p">,</span>
+    <span class="n">ScaleBar</span><span class="p">,</span>
+    <span class="n">CustomJS</span><span class="p">,</span>
+    <span class="n">Metric</span><span class="p">,</span>
+    <span class="n">Range1d</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.models.annotations.dimensional</span><span class="w"> </span><span class="kn">import</span> <span class="n">CustomDimensional</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.plotting</span><span class="w"> </span><span class="kn">import</span> <span class="n">figure</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bokeh.transform</span><span class="w"> </span><span class="kn">import</span> <span class="n">log_cmap</span><span class="p">,</span> <span class="n">linear_cmap</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.spectrum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Frame</span><span class="p">,</span> <span class="n">MSIDataset</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">,</span> <span class="s2">&quot;scatterplot&quot;</span><span class="p">,</span> <span class="s2">&quot;heatmap&quot;</span><span class="p">,</span> <span class="s2">&quot;mobilogram&quot;</span><span class="p">,</span> <span class="s2">&quot;heatmap_layouts&quot;</span><span class="p">,</span> <span class="s2">&quot;dashboard&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="image">
+<a class="viewcode-back" href="../../usage.html#timsimaging.plotting.image">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">image</span><span class="p">(</span>
+    <span class="n">dataset</span><span class="p">:</span> <span class="s2">&quot;MSIDataset&quot;</span><span class="p">,</span>
+    <span class="n">mz</span><span class="p">:</span><span class="nb">slice</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">mobility</span><span class="p">:</span><span class="nb">slice</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">normalization</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;TIC&quot;</span><span class="p">,</span> <span class="s2">&quot;RMS&quot;</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;none&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">figure</span><span class="p">,</span> <span class="n">ColumnDataSource</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize images of a dataset.</span>
+<span class="sd">    By default it is the TIC image. If mz and mobility provided, </span>
+<span class="sd">    all intensities within the slices would be aggregated across pixels</span>
+
+<span class="sd">    :param dataset: the dataset to visualize</span>
+<span class="sd">    :type dataset: MSIDataset</span>
+<span class="sd">    :param mz: the m/z slice to subset the data, defaults to None</span>
+<span class="sd">    :type mz: slice, optional</span>
+<span class="sd">    :param mobility: the mobility slice to subset the data, defaults to None</span>
+<span class="sd">    :type mobility: slice, optional</span>
+<span class="sd">    :param normalization: normalize pixel intensities, defaults to &quot;TIC&quot;</span>
+<span class="sd">    :type normalization: Literal[&amp;quot;TIC&amp;quot;, &amp;quot;RMS&amp;quot;, &amp;quot;none&amp;quot;], optional</span>
+<span class="sd">    :return: the image and its data source</span>
+<span class="sd">    :rtype: Tuple[figure, ColumnDataSource]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">reset_index</span><span class="p">())</span>
+
+    <span class="k">if</span> <span class="n">mz</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">mobility</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">mobility</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">mz</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">]</span>
+        <span class="n">intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">bin_intensities</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;rt_values&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">tic</span><span class="p">()</span>
+    <span class="n">source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span>
+
+    <span class="k">if</span> <span class="n">normalization</span> <span class="o">==</span> <span class="s2">&quot;none&quot;</span><span class="p">:</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span> <span class="o">/</span> <span class="n">intensities</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">normalization</span> <span class="o">==</span> <span class="s2">&quot;TIC&quot;</span><span class="p">:</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="n">intensities</span> <span class="o">/</span> <span class="n">dataset</span><span class="o">.</span><span class="n">tic</span><span class="p">()</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">normalized</span> <span class="o">/</span> <span class="n">normalized</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">normalization</span> <span class="o">==</span> <span class="s2">&quot;RMS&quot;</span><span class="p">:</span>
+        <span class="n">source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span> <span class="o">/</span> <span class="n">intensities</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Ion Image&quot;</span><span class="p">,</span>
+        <span class="n">match_aspect</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="c1"># tools=&quot;pan,wheel_zoom,box_select,tap,hover,save,reset&quot;,</span>
+        <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+        <span class="n">x_axis_label</span><span class="o">=</span><span class="s2">&quot;X&quot;</span><span class="p">,</span>
+        <span class="n">y_axis_label</span><span class="o">=</span><span class="s2">&quot;Y&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">toolbar</span><span class="o">.</span><span class="n">active_scroll</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">select_one</span><span class="p">({</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">WheelZoomTool</span><span class="p">})</span>
+
+    <span class="c1"># (0,0) is on the top-left for ion images</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">flipped</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># cmap = LinearColorMapper(palette=&quot;Viridis256&quot;, low = 0, high = tic.max())</span>
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">linear_cmap</span><span class="p">(</span><span class="s2">&quot;normalized&quot;</span><span class="p">,</span> <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;Viridis256&quot;</span><span class="p">,</span> <span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">pixel_grid</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;XIndexPos&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;YIndexPos&quot;</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+        <span class="c1"># line_alpha=0,</span>
+        <span class="c1"># line_width=0,</span>
+        <span class="n">hover_line_alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">hover_line_width</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">hover_line_color</span><span class="o">=</span><span class="s2">&quot;gray&quot;</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">pixel_grid</span><span class="o">.</span><span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">]</span>
+
+    <span class="n">color_bar</span> <span class="o">=</span> <span class="n">pixel_grid</span><span class="o">.</span><span class="n">construct_color_bar</span><span class="p">()</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_layout</span><span class="p">(</span><span class="n">color_bar</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">)</span>
+
+    <span class="n">units</span> <span class="o">=</span> <span class="n">CustomDimensional</span><span class="p">(</span>
+        <span class="n">basis</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">&quot;px&quot;</span><span class="p">:</span> <span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="n">dataset</span><span class="o">.</span><span class="n">resolution</span><span class="p">[</span><span class="s2">&quot;xy&quot;</span><span class="p">],</span> <span class="s2">&quot;px&quot;</span><span class="p">,</span> <span class="s2">&quot;pixel&quot;</span><span class="p">),</span>
+            <span class="c1"># &quot;mm&quot;: (1000/ dataset.resolution[&quot;xy&quot;], &quot;mm&quot;, &quot;millimeter&quot;),</span>
+        <span class="p">},</span>
+        <span class="n">ticks</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">25</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">75</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">125</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">250</span><span class="p">,</span> <span class="mi">500</span><span class="p">,</span> <span class="mi">750</span><span class="p">],</span>
+    <span class="p">)</span>
+
+    <span class="n">scale_bar</span> <span class="o">=</span> <span class="n">ScaleBar</span><span class="p">(</span>
+        <span class="nb">range</span><span class="o">=</span><span class="n">f</span><span class="o">.</span><span class="n">x_range</span><span class="p">,</span>
+        <span class="n">location</span><span class="o">=</span><span class="s2">&quot;top_left&quot;</span><span class="p">,</span>
+        <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;px&quot;</span><span class="p">,</span>
+        <span class="c1"># unit=&quot;µm&quot;,</span>
+        <span class="n">dimensional</span><span class="o">=</span><span class="n">Metric</span><span class="p">(</span><span class="n">base_unit</span><span class="o">=</span><span class="s2">&quot;px&quot;</span><span class="p">),</span>
+        <span class="c1"># label = &quot;@{value} @{unit}&quot;,</span>
+    <span class="p">)</span>
+
+    <span class="n">f</span><span class="o">.</span><span class="n">add_layout</span><span class="p">(</span><span class="n">scale_bar</span><span class="p">)</span>
+
+    <span class="c1"># hover tool</span>
+    <span class="n">hover</span> <span class="o">=</span> <span class="n">HoverTool</span><span class="p">(</span>
+        <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">pixel_grid</span><span class="p">],</span>
+        <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;X&quot;</span><span class="p">,</span> <span class="s2">&quot;@XIndexPos&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;Y&quot;</span><span class="p">,</span> <span class="s2">&quot;@YIndexPos&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;Frame index&quot;</span><span class="p">,</span> <span class="s2">&quot;@Frame&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;Intensity&quot;</span><span class="p">,</span> <span class="s2">&quot;@total_intensity&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">hover</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">source</span></div>
+
+
+
+<div class="viewcode-block" id="scatterplot">
+<a class="viewcode-back" href="../../usage.html#timsimaging.plotting.scatterplot">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">scatterplot</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="s2">&quot;Frame&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">figure</span><span class="p">,</span> <span class="n">ColumnDataSource</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize a 2D spectogram in scatter plot, with better performance compared with heatmap</span>
+
+<span class="sd">    :param frame: the frame to visualize</span>
+<span class="sd">    :type frame: Frame</span>
+<span class="sd">    :return: the 2D spectogram and its datasource</span>
+<span class="sd">    :rtype: figure</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+    <span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">resolution</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;2D Spectrogram&quot;</span><span class="p">,</span>
+        <span class="n">x_range</span><span class="o">=</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">mz_domain</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">frame</span><span class="o">.</span><span class="n">mz_domain</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+        <span class="n">y_range</span><span class="o">=</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">mobility_domain</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">frame</span><span class="o">.</span><span class="n">mobility_domain</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+        <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+        <span class="n">background_fill_color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span>
+        <span class="n">aspect_ratio</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="n">match_aspect</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># the 2D spectrogram</span>
+
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">log_cmap</span><span class="p">(</span>
+        <span class="s2">&quot;intensity_values&quot;</span><span class="p">,</span>
+        <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;Magma256&quot;</span><span class="p">,</span>
+        <span class="n">low</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+        <span class="c1"># high=df[&quot;intensity_values&quot;].quantile(q=0.95),</span>
+        <span class="n">high</span><span class="o">=</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+    <span class="p">)</span>
+
+    <span class="n">spec2d</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">color_bar</span> <span class="o">=</span> <span class="n">spec2d</span><span class="o">.</span><span class="n">construct_color_bar</span><span class="p">()</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_layout</span><span class="p">(</span><span class="n">color_bar</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">)</span>
+
+    <span class="n">crosshair</span> <span class="o">=</span> <span class="n">CrosshairTool</span><span class="p">(</span><span class="n">line_color</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">crosshair</span><span class="p">)</span>
+    
+    <span class="n">hover</span> <span class="o">=</span> <span class="n">HoverTool</span><span class="p">(</span>
+        <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">spec2d</span><span class="p">],</span>
+        <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span> <span class="s2">&quot;@mz_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span> <span class="s2">&quot;@mobility_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span> <span class="s2">&quot;@intensity_values&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;index&quot;</span><span class="p">,</span> <span class="s2">&quot;$index&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">hover</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">source</span></div>
+
+
+
+<div class="viewcode-block" id="heatmap">
+<a class="viewcode-back" href="../../usage.html#timsimaging.plotting.heatmap">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">heatmap</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="s2">&quot;Frame&quot;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">figure</span><span class="p">,</span> <span class="n">ColumnDataSource</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize a 2D spectogram</span>
+
+<span class="sd">    :param frame: the frame to visualize</span>
+<span class="sd">    :type frame: Frame</span>
+<span class="sd">    :return: the 2D spectogram and its data source</span>
+<span class="sd">    :rtype: figure</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+    <span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">resolution</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;2D Spectrogram&quot;</span><span class="p">,</span>
+        <span class="n">x_range</span><span class="o">=</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">mz_domain</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">frame</span><span class="o">.</span><span class="n">mz_domain</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+        <span class="n">y_range</span><span class="o">=</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">mobility_domain</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">frame</span><span class="o">.</span><span class="n">mobility_domain</span><span class="o">.</span><span class="n">max</span><span class="p">()),</span>
+        <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+        <span class="n">background_fill_color</span><span class="o">=</span><span class="s2">&quot;black&quot;</span><span class="p">,</span>
+        <span class="n">aspect_ratio</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="c1"># height=600,</span>
+        <span class="c1"># sizing_mode=&quot;fixed&quot;,</span>
+        <span class="n">match_aspect</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">toolbar</span><span class="o">.</span><span class="n">active_scroll</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">select_one</span><span class="p">({</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="n">WheelZoomTool</span><span class="p">})</span>
+    <span class="c1"># the 2D spectrogram</span>
+
+    <span class="n">cmap</span> <span class="o">=</span> <span class="n">log_cmap</span><span class="p">(</span>
+        <span class="s2">&quot;intensity_values&quot;</span><span class="p">,</span>
+        <span class="n">palette</span><span class="o">=</span><span class="s2">&quot;Magma256&quot;</span><span class="p">,</span>
+        <span class="n">low</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+        <span class="c1"># high=df[&quot;intensity_values&quot;].quantile(q=0.95),</span>
+        <span class="n">high</span><span class="o">=</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span>
+    <span class="p">)</span>
+
+    <span class="n">spec2d</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="n">height</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">color_bar</span> <span class="o">=</span> <span class="n">spec2d</span><span class="o">.</span><span class="n">construct_color_bar</span><span class="p">()</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_layout</span><span class="p">(</span><span class="n">color_bar</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">)</span>
+
+    <span class="n">crosshair</span> <span class="o">=</span> <span class="n">CrosshairTool</span><span class="p">(</span><span class="n">line_color</span><span class="o">=</span><span class="s1">&#39;white&#39;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">crosshair</span><span class="p">)</span>
+
+    <span class="n">hover</span> <span class="o">=</span> <span class="n">HoverTool</span><span class="p">(</span>
+        <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">spec2d</span><span class="p">],</span>
+        <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span> <span class="s2">&quot;@mz_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span> <span class="s2">&quot;@mobility_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span> <span class="s2">&quot;@intensity_values&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;index&quot;</span><span class="p">,</span> <span class="s2">&quot;$index&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">hover</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">source</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">spectrum</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">figure</span><span class="p">,</span> <span class="n">ColumnDataSource</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize a classical mass spectrum using line plot</span>
+
+<span class="sd">    :param data: the data to visualize, with &quot;mz_values&quot; column and &quot;intensity_values&quot; column</span>
+<span class="sd">    :type data: pd.DataFrame</span>
+<span class="sd">    :return: the 1D mass spectrum and its data source</span>
+<span class="sd">    :rtype: Tuple[figure, ColumnDataSource]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+        <span class="n">title</span><span class="o">=</span><span class="s2">&quot;1D spectrum&quot;</span><span class="p">,</span>
+        <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+        <span class="n">x_axis_label</span><span class="o">=</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span>
+        <span class="n">y_axis_label</span><span class="o">=</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">spec1d</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">line</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+        <span class="n">hover_alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">hover</span> <span class="o">=</span> <span class="n">HoverTool</span><span class="p">(</span>
+        <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">spec1d</span><span class="p">],</span>
+        <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span> <span class="s2">&quot;@mz_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span> <span class="s2">&quot;@intensity_values&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">hover</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">source</span>
+
+
+<div class="viewcode-block" id="mobilogram">
+<a class="viewcode-back" href="../../usage.html#timsimaging.plotting.mobilogram">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mobilogram</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">transposed</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">figure</span><span class="p">,</span> <span class="n">ColumnDataSource</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Visualize a mobilogram using line plot</span>
+
+<span class="sd">    :param data: the data to visualize, with &quot;mobility_values&quot; column and &quot;intensity_values&quot; column</span>
+<span class="sd">    :type data: pd.DataFrame</span>
+<span class="sd">    :param transposed: swap x and y axis to set the mobilogram as y-marginal, defaults to False</span>
+<span class="sd">    :type transposed: bool, optional</span>
+<span class="sd">    :return: the mobilogram and its data source</span>
+<span class="sd">    :rtype: Tuple[figure, ColumnDataSource]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">transposed</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Mobilogram&quot;</span><span class="p">,</span>
+            <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+            <span class="n">x_axis_label</span><span class="o">=</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span>
+            <span class="n">y_axis_label</span><span class="o">=</span><span class="s2">&quot;1/K_0&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">mob</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">line</span><span class="p">(</span>
+            <span class="n">x</span><span class="o">=</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">,</span>
+            <span class="n">y</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+            <span class="n">hover_alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+            <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;Mobilogram&quot;</span><span class="p">,</span>
+            <span class="n">toolbar_location</span><span class="o">=</span><span class="s2">&quot;right&quot;</span><span class="p">,</span>
+            <span class="n">x_axis_label</span><span class="o">=</span><span class="s2">&quot;1/K_0&quot;</span><span class="p">,</span>
+            <span class="n">y_axis_label</span><span class="o">=</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">mob</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">line</span><span class="p">(</span>
+            <span class="n">x</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">y</span><span class="o">=</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">,</span>
+            <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
+            <span class="n">hover_alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+            <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">hover</span> <span class="o">=</span> <span class="n">HoverTool</span><span class="p">(</span>
+        <span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">mob</span><span class="p">],</span>
+        <span class="n">tooltips</span><span class="o">=</span><span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;1/K_0&quot;</span><span class="p">,</span> <span class="s2">&quot;@mobility_values</span><span class="si">{0.0000}</span><span class="s2">&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s2">&quot;intensity&quot;</span><span class="p">,</span> <span class="s2">&quot;@intensity_values&quot;</span><span class="p">),</span>
+        <span class="p">],</span>
+    <span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">hover</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">f</span><span class="p">,</span> <span class="n">source</span></div>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">feature_list</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="n">source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;index&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;#&quot;</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;total peak intensity&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="n">table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">index_position</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">table</span><span class="p">,</span> <span class="n">source</span>
+
+
+<span class="c1"># make a function a Bokeh application</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">bkapp</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">app</span><span class="p">(</span><span class="n">doc</span><span class="p">:</span> <span class="n">Document</span><span class="p">):</span>
+            <span class="n">ui</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">doc</span><span class="o">.</span><span class="n">add_root</span><span class="p">(</span><span class="n">ui</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">app</span>
+
+    <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<span class="nd">@bkapp</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">heatmap_layouts</span><span class="p">(</span>
+    <span class="n">frame</span><span class="p">:</span> <span class="s2">&quot;Frame&quot;</span><span class="p">,</span>
+    <span class="n">peak_list</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">peak_extents</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The interactive visualization of a frame.</span>
+<span class="sd">    2D spectogram, 1D projections along mz and mobility dimension and peak list</span>
+
+<span class="sd">    :param doc: _description_</span>
+<span class="sd">    :type doc: Document</span>
+<span class="sd">    :param frame: the frame to visualize</span>
+<span class="sd">    :type frame: Frame</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">resolution</span>
+    <span class="k">if</span> <span class="n">peak_list</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">peak_list</span><span class="p">,</span> <span class="n">group_labels</span><span class="p">,</span> <span class="n">peak_extents</span> <span class="o">=</span> <span class="n">frame</span><span class="o">.</span><span class="n">peakPick</span><span class="p">(</span>
+            <span class="n">return_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">return_extents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">heatmap_source</span> <span class="o">=</span> <span class="n">heatmap</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+
+    <span class="c1"># show/hide grid lines</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_grid_line</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">xgrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">ygrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">grid_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show grid lines&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">grid_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">show_grid_line</span><span class="p">)</span>
+
+    <span class="c1"># plot peak boxes</span>
+    <span class="c1"># convert extents to location and size</span>
+    <span class="n">peak_rect_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># if min=max, the width is 1 unit</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;width&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">width</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;height&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">height</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_rect_data</span><span class="p">)</span>
+    <span class="n">peak_boxes</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="s2">&quot;width&quot;</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="s2">&quot;height&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">peak_rect_source</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="s2">&quot;steelblue&quot;</span><span class="p">,</span>
+        <span class="n">fill_alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># checkbox</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot_peak_box</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">peak_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show peaks&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">peak_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">plot_peak_box</span><span class="p">)</span>
+
+    <span class="c1"># callback for centering the view of a peak</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">look_into_peak</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">peak_idx</span> <span class="o">=</span> <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">peak_rect_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">]</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">y</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+
+    <span class="c1"># peak list table</span>
+    <span class="n">peak_table_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_list</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;peak volume&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+    <span class="n">peak_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">peak_table_source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">)</span>
+    <span class="c1"># when one entry is selected, call look_into_peak</span>
+    <span class="n">peak_table_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">look_into_peak</span><span class="p">)</span>
+
+    <span class="c1"># 1d projections</span>
+    <span class="n">spec1d_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">spec1d_figure</span><span class="p">,</span> <span class="n">spec1d_source</span> <span class="o">=</span> <span class="n">spectrum</span><span class="p">(</span><span class="n">spec1d_df</span><span class="p">)</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">x_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">height</span> <span class="o">//</span> <span class="mi">2</span>
+
+    <span class="n">mob_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">mob_figure</span><span class="p">,</span> <span class="n">mob_source</span> <span class="o">=</span> <span class="n">mobilogram</span><span class="p">(</span><span class="n">mob_df</span><span class="p">,</span> <span class="n">transposed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mob_figure</span><span class="o">.</span><span class="n">y_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span>
+    <span class="n">mob_figure</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">width</span> <span class="o">//</span> <span class="mi">2</span>
+
+    <span class="n">range_div</span> <span class="o">=</span> <span class="n">Div</span><span class="p">(</span>
+        <span class="n">text</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">        x_range:</span>
+<span class="s2">        y_range:</span>
+<span class="s2">    &quot;&quot;&quot;</span>
+    <span class="p">)</span>
+
+    <span class="c1"># callback for 1D projecting current range</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">range_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># current data</span>
+        <span class="n">df_view</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">]</span>
+
+        <span class="n">spec1d_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+        <span class="n">mob_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+        <span class="n">range_div</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">                            &lt;h3&gt;x_range: </span><span class="si">{</span><span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span><span class="si">:</span><span class="s2"> .4f</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span><span class="si">:</span><span class="s2"> .4f</span><span class="si">}</span><span class="s2">&lt;/h3&gt;</span>
+<span class="s2">                            &lt;h3&gt;y_range: </span><span class="si">{</span><span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span><span class="si">:</span><span class="s2"> .4f</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span><span class="si">:</span><span class="s2"> .4f</span><span class="si">}</span><span class="s2">&lt;/h3&gt;</span>
+<span class="s2">                            &lt;h3&gt;2d data length: </span><span class="si">{</span><span class="n">df_view</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&lt;/h3&gt;</span>
+<span class="s2">                            &lt;h3&gt;1d spec data length: </span><span class="si">{</span><span class="n">spec1d_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&lt;/h3&gt;</span>
+<span class="s2">                            &lt;h3&gt;1d mob data length:</span><span class="si">{</span><span class="n">mob_df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&lt;/h3&gt;</span>
+<span class="s2">        &quot;&quot;&quot;</span>
+
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+
+    <span class="c1"># axis_range_button = Button(label=&quot;show axis ranges&quot;)</span>
+    <span class="c1"># axis_range_button.js_on_click(</span>
+    <span class="c1">#     CustomJS(</span>
+    <span class="c1">#         args=dict(f=f1),</span>
+    <span class="c1">#         code=&quot;&quot;&quot;</span>
+    <span class="c1">#                                         console.log(f.x_range.start)</span>
+    <span class="c1">#                                         console.log(f.x_range.end)&quot;&quot;&quot;,</span>
+    <span class="c1">#     )</span>
+    <span class="c1"># )</span>
+    <span class="c1"># peak_table_source.selected.js_on_change(&quot;indices&quot;,</span>
+    <span class="c1">#                                       CustomJS(code=&#39;&#39;&#39;</span>
+    <span class="c1">#                                       const idx = cb_obj.indices[0];</span>
+    <span class="c1">#                                       console.log(idx);</span>
+    <span class="c1">#                                       &#39;&#39;&#39;))</span>
+    <span class="c1"># peak_data = ColumnDataSource(self.peakPick())</span>
+    <span class="c1"># data_table = DataTable(source=source, columns=columns, width=400, height=280)</span>
+
+    <span class="c1"># heatmap_layouts = (</span>
+    <span class="c1">#     [f, column([peak_checkbox, peak_table]), axis_range_button],</span>
+    <span class="c1">#     sizing_mode=&quot;stretch_both&quot;,</span>
+    <span class="c1"># )</span>
+    <span class="n">layouts</span> <span class="o">=</span> <span class="n">row</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">gridplot</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="p">[</span><span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">mob_figure</span><span class="p">],</span>
+                    <span class="p">[</span><span class="n">spec1d_figure</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span>
+                <span class="p">]</span>
+            <span class="p">),</span>
+            <span class="n">column</span><span class="p">([</span><span class="n">peak_checkbox</span><span class="p">,</span> <span class="n">grid_checkbox</span><span class="p">,</span> <span class="n">peak_table</span><span class="p">,</span> <span class="n">range_div</span><span class="p">]),</span>
+        <span class="p">],</span>
+        <span class="n">sizing_mode</span><span class="o">=</span><span class="s2">&quot;scale_width&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">layouts</span>
+
+
+<span class="nd">@bkapp</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dashboard</span><span class="p">(</span>
+    <span class="n">dataset</span><span class="p">:</span> <span class="s2">&quot;MSIDataset&quot;</span><span class="p">,</span>
+    <span class="n">sampling_ratio</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">intensity_threshold</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">normalization</span><span class="o">=</span><span class="s2">&quot;TIC&quot;</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;The interactive visualization for a dataset</span>
+
+<span class="sd">    :param doc:</span>
+<span class="sd">    :type doc: Document</span>
+<span class="sd">    :param dataset: the dataset to visualize</span>
+<span class="sd">    :type dataset: MSIDataset</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mean_spec</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">mean_spectrum</span><span class="p">(</span>
+        <span class="n">sampling_ratio</span><span class="o">=</span><span class="n">sampling_ratio</span><span class="p">,</span> <span class="n">intensity_threshold</span><span class="o">=</span><span class="n">intensity_threshold</span>
+    <span class="p">)</span>
+    <span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="n">mean_spec</span><span class="o">.</span><span class="n">resolution</span>
+
+    <span class="n">peak_list</span><span class="p">,</span> <span class="n">group_labels</span><span class="p">,</span> <span class="n">peak_extents</span> <span class="o">=</span> <span class="n">mean_spec</span><span class="o">.</span><span class="n">peakPick</span><span class="p">(</span>
+        <span class="n">return_labels</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">return_extents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="c1"># image(initially TIC)</span>
+    <span class="n">image_figure</span><span class="p">,</span> <span class="n">image_source</span> <span class="o">=</span> <span class="n">image</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+    <span class="c1"># heatmap(initially mean spectrum)</span>
+    <span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">heatmap_source</span> <span class="o">=</span> <span class="n">heatmap</span><span class="p">(</span><span class="n">mean_spec</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_tic</span><span class="p">():</span>
+        <span class="n">intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">tic</span><span class="p">()</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span> <span class="o">/</span> <span class="n">intensities</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="n">tic_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show TIC image&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;primary&quot;</span><span class="p">)</span>
+    <span class="n">tic_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">show_tic</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_meanspec</span><span class="p">():</span>
+        <span class="n">heatmap_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">mean_spec</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="n">meanspec_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show mean spectrum&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;primary&quot;</span><span class="p">)</span>
+    <span class="n">meanspec_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">show_meanspec</span><span class="p">)</span>
+
+    <span class="c1"># show/hide grid lines</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_grid_line</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">xgrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">ygrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">grid_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show grid lines&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">grid_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">show_grid_line</span><span class="p">)</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">mean_spec</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">spec1d_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">spec1d_figure</span><span class="p">,</span> <span class="n">spec1d_source</span> <span class="o">=</span> <span class="n">spectrum</span><span class="p">(</span><span class="n">spec1d_df</span><span class="p">)</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">x_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">major_label_orientation</span> <span class="o">=</span> <span class="s2">&quot;vertical&quot;</span>
+
+    <span class="n">mob_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">mob_figure</span><span class="p">,</span> <span class="n">mob_source</span> <span class="o">=</span> <span class="n">mobilogram</span><span class="p">(</span><span class="n">mob_df</span><span class="p">,</span> <span class="n">transposed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mob_figure</span><span class="o">.</span><span class="n">y_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span>
+
+    <span class="c1"># add taptool</span>
+    <span class="n">pixel_grid</span> <span class="o">=</span> <span class="n">image_figure</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">tap</span> <span class="o">=</span> <span class="n">TapTool</span><span class="p">(</span><span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">pixel_grid</span><span class="p">])</span>
+    <span class="n">image_figure</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">tap</span><span class="p">)</span>
+    <span class="n">tap_div</span> <span class="o">=</span> <span class="n">Div</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;Selected index&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">tap_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">new</span>
+
+        <span class="k">if</span> <span class="n">selected_indices</span><span class="p">:</span>
+            <span class="n">selected_index</span> <span class="o">=</span> <span class="n">selected_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">dataset</span><span class="p">[</span><span class="n">selected_index</span><span class="p">]</span><span class="o">.</span><span class="n">data</span>
+            <span class="n">heatmap_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span>
+            <span class="n">spec1d_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="n">mob_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="n">tap_div</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Selected index: </span><span class="si">{</span><span class="n">selected_indices</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="c1"># only one pixel could be selected once</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">selected_indices</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">image_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">selected_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="n">image_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">tap_callback</span><span class="p">)</span>
+
+    <span class="c1"># box select</span>
+
+    <span class="c1"># peak list</span>
+    <span class="n">peak_rect_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># if min=max, the width is 1 unit</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;width&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">width</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;height&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">height</span>
+    <span class="p">)</span>
+
+    <span class="n">peak_rect_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_rect_data</span><span class="p">)</span>
+    <span class="n">peak_boxes</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="s2">&quot;width&quot;</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="s2">&quot;height&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">peak_rect_source</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="s2">&quot;steelblue&quot;</span><span class="p">,</span>
+        <span class="n">fill_alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># checkbox</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot_peak_box</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">peak_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show peaks&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">peak_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">plot_peak_box</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">look_into_peak</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">peak_idx</span> <span class="o">=</span> <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">peak_rect_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">]</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">y</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="c1"># peak info</span>
+        <span class="n">mz</span><span class="p">,</span> <span class="n">mobility</span> <span class="o">=</span> <span class="n">peak_list</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">][[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;mobility_values&quot;</span><span class="p">]]</span>
+        <span class="n">mz_min</span><span class="p">,</span> <span class="n">mz_max</span><span class="p">,</span> <span class="n">mob_min</span><span class="p">,</span> <span class="n">mob_max</span> <span class="o">=</span> <span class="n">peak_extents</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">][[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;mobility_values&quot;</span><span class="p">]]</span>
+
+        <span class="c1"># pixel-wise intensity</span>
+        <span class="c1"># image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]</span>
+        <span class="c1"># peak_intensities = image_data.groupby(&quot;frame_indices&quot;)[&quot;intensity_values&quot;].sum()</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">mob_min</span><span class="p">:</span><span class="n">mob_max</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">mz_min</span><span class="p">:</span><span class="n">mz_max</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">]</span>
+        <span class="n">peak_intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">bin_intensities</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;rt_values&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">:]</span>
+
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_intensities</span>
+        <span class="k">if</span> <span class="n">normalization</span> <span class="o">==</span> <span class="s2">&quot;TIC&quot;</span><span class="p">:</span>
+            <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_intensities</span> <span class="o">/</span> <span class="n">peak_intensities</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">normalization</span> <span class="o">==</span> <span class="s2">&quot;RMS&quot;</span><span class="p">:</span>
+            <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_intensities</span> <span class="o">/</span> <span class="n">peak_intensities</span><span class="o">.</span><span class="n">std</span><span class="p">()</span>
+        <span class="n">image_figure</span><span class="o">.</span><span class="n">title</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;MS Image m/z: </span><span class="si">{</span><span class="n">mz</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> 1/K_0: </span><span class="si">{</span><span class="n">mobility</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="n">peak_table_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_list</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;total peak intensity&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="c1"># TableColumn(</span>
+        <span class="c1">#     field=&quot;ccs_values&quot;,</span>
+        <span class="c1">#     title=&quot;collision cross section(CCS)&quot;,</span>
+        <span class="c1">#     formatter=NumberFormatter(format=&quot;0.000&quot;),</span>
+        <span class="c1"># ),</span>
+    <span class="p">]</span>
+
+    <span class="n">peak_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">peak_table_source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">580</span><span class="p">)</span>
+    <span class="c1"># when one entry is selected, call look_into_peak</span>
+    <span class="n">peak_table_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">look_into_peak</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">range_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># current data</span>
+        <span class="n">df_view</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">]</span>
+
+        <span class="n">spec1d_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+        <span class="n">mob_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+
+    <span class="c1"># compute CCS</span>
+    <span class="n">ccs_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Compute CCS value&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;success&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_ccs</span><span class="p">():</span>
+        <span class="c1"># already computed</span>
+        <span class="k">if</span> <span class="s2">&quot;ccs_values&quot;</span> <span class="ow">in</span> <span class="n">peak_table_source</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">calibrator</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">ccs_calibrator</span><span class="p">()</span>
+            <span class="n">ccs_values</span> <span class="o">=</span> <span class="n">calibrator</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span>
+                <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">],</span> <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">],</span> <span class="n">charge</span><span class="o">=</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ccs_values</span>
+            <span class="n">peak_table_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ccs_values</span>
+            <span class="n">peak_table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">TableColumn</span><span class="p">(</span>
+                    <span class="n">field</span><span class="o">=</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">,</span>
+                    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;CCS&quot;</span><span class="p">,</span>
+                    <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+
+    <span class="n">ccs_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">compute_ccs</span><span class="p">)</span>
+
+    <span class="c1"># export peak list</span>
+    <span class="c1"># TODO add more format options</span>
+    <span class="n">export_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Export peak list&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;success&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">export_csv</span><span class="p">():</span>
+        <span class="n">csv_data</span> <span class="o">=</span> <span class="n">peak_list</span><span class="o">.</span><span class="n">to_csv</span><span class="p">()</span>
+        <span class="c1"># csv_data = csv_data.replace(&quot;\n&quot;, &quot;\\n&quot;).replace(&quot;\r&quot;, &quot;\\r&quot;).replace(&#39;&quot;&#39;, &#39;\\&quot;&#39;)</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s2">&quot;peak_list.csv&quot;</span>
+        <span class="n">export_button</span><span class="o">.</span><span class="n">js_on_click</span><span class="p">(</span>
+            <span class="n">CustomJS</span><span class="p">(</span>
+                <span class="n">args</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">csv_data</span><span class="o">=</span><span class="n">csv_data</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">),</span>
+                <span class="n">code</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">            const filetext = csv_data;</span>
+<span class="s2">    </span>
+<span class="s2">            const blob = new Blob([filetext], { type: &#39;text/csv;charset=utf-8;&#39; });</span>
+<span class="s2">    </span>
+<span class="s2">            //addresses IE</span>
+<span class="s2">            if (navigator.msSaveBlob) {</span>
+<span class="s2">                navigator.msSaveBlob(blob, filename);</span>
+<span class="s2">            } else {</span>
+<span class="s2">                const link = document.createElement(&#39;a&#39;);</span>
+<span class="s2">                if (link.download !== undefined) {</span>
+<span class="s2">                    const url = URL.createObjectURL(blob);</span>
+<span class="s2">                    link.setAttribute(&#39;href&#39;, url);</span>
+<span class="s2">                    link.setAttribute(&#39;download&#39;, filename);</span>
+<span class="s2">                    link.style.visibility = &#39;hidden&#39;;</span>
+<span class="s2">                    document.body.appendChild(link);</span>
+<span class="s2">                    link.click();</span>
+<span class="s2">                    document.body.removeChild(link);</span>
+<span class="s2">                }</span>
+<span class="s2">            }</span>
+<span class="s2">        &quot;&quot;&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Assign the Python callback to the button</span>
+    <span class="n">export_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">export_csv</span><span class="p">)</span>
+
+    <span class="n">layouts</span> <span class="o">=</span> <span class="n">grid</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="p">[</span><span class="n">image_figure</span><span class="p">,</span> <span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">mob_figure</span><span class="p">],</span>
+            <span class="p">[</span>
+                <span class="n">peak_table</span><span class="p">,</span>
+                <span class="n">spec1d_figure</span><span class="p">,</span>
+                <span class="n">column</span><span class="p">(</span>
+                    <span class="n">peak_checkbox</span><span class="p">,</span>
+                    <span class="n">grid_checkbox</span><span class="p">,</span>
+                    <span class="n">tic_button</span><span class="p">,</span>
+                    <span class="n">meanspec_button</span><span class="p">,</span>
+                    <span class="n">ccs_button</span><span class="p">,</span>
+                    <span class="n">export_button</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">],</span>
+        <span class="p">],</span>
+        <span class="c1"># sizing_mode=&quot;fixed&quot;,</span>
+    <span class="p">)</span>
+    <span class="c1"># layouts = row(</span>
+    <span class="c1">#     [</span>
+    <span class="c1">#         column(image_figure, peak_table),</span>
+    <span class="c1">#         column([heatmap_figure, spec1d_figure], sizing_mode=&quot;stretch_width&quot;),</span>
+    <span class="c1">#         column(mob_figure, peak_checkbox, button),</span>
+    <span class="c1">#     ],</span>
+    <span class="c1"># )</span>
+    <span class="c1"># layouts = row([image_figure, heatmap_figure, column([peak_table, button])])</span>
+    <span class="k">return</span> <span class="n">layouts</span>
+
+
+<span class="c1"># sizing_mode=&quot;stretch_width&quot;</span>
+
+
+<span class="c1"># wrapper functions for Jupyter Notebook use, because bokeh.io.show() accepcts callable with only one doc arg</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">plot</span><span class="p">(</span><span class="n">frame</span><span class="p">:</span> <span class="s2">&quot;Frame&quot;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Document</span><span class="p">],</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Plot a dashboard for a frame</span>
+<span class="sd">    show(plot(&lt;frame&gt;, &lt;params&gt;), notebook_url=&lt;...&gt;)</span>
+<span class="sd">    Any keyword arguments would be passed to peakPick()</span>
+
+<span class="sd">    :param frame: the frame to visualize</span>
+<span class="sd">    :type frame: Frame</span>
+<span class="sd">    :return: a closure function</span>
+<span class="sd">    :rtype: Callable[[Document], None]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="k">lambda</span> <span class="n">doc</span><span class="p">:</span> <span class="p">(</span><span class="n">heatmap_layouts</span><span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="n">frame</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+
+
+<span class="nd">@bkapp</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_visualize</span><span class="p">(</span>
+    <span class="n">dataset</span><span class="p">:</span> <span class="s2">&quot;MSIDataset&quot;</span><span class="p">,</span>
+    <span class="n">mean_spectrum</span><span class="p">:</span> <span class="s2">&quot;Frame&quot;</span><span class="p">,</span>
+    <span class="n">peak_list</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+    <span class="n">peak_extents</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A helper function to build a visualization App from processed data</span>
+
+<span class="sd">    :param dataset: the original dataset, used for metadata and dynamic viz</span>
+<span class="sd">    :type dataset: MSIDataset</span>
+<span class="sd">    :param mean_spectrum: the mean spectrum, used for 2D heatmap</span>
+<span class="sd">    :type mean_spectrum: Frame</span>
+<span class="sd">    :param peak_list: mz, mobility center and intensity for each peak</span>
+<span class="sd">    :type peak_list: pd.DataFrame</span>
+<span class="sd">    :param peak_extents: mz and mobility range for each peak</span>
+<span class="sd">    :type peak_extents: pd.DataFrame</span>
+<span class="sd">    :return: a Bokeh layout, further wrapped into an App by the decorator</span>
+<span class="sd">    :rtype: _type_</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="n">mean_spectrum</span><span class="o">.</span><span class="n">resolution</span>
+
+    <span class="c1"># image(initially TIC)</span>
+    <span class="n">image_figure</span><span class="p">,</span> <span class="n">image_source</span> <span class="o">=</span> <span class="n">image</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
+    <span class="c1"># heatmap(initially mean spectrum)</span>
+    <span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">heatmap_source</span> <span class="o">=</span> <span class="n">heatmap</span><span class="p">(</span><span class="n">mean_spectrum</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_tic</span><span class="p">():</span>
+        <span class="n">intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">tic</span><span class="p">()</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">intensities</span> <span class="o">/</span> <span class="n">intensities</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="n">tic_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show TIC image&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;primary&quot;</span><span class="p">)</span>
+    <span class="n">tic_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">show_tic</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_meanspec</span><span class="p">():</span>
+        <span class="n">heatmap_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">mean_spectrum</span><span class="o">.</span><span class="n">data</span>
+
+    <span class="n">meanspec_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show mean spectrum&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;primary&quot;</span><span class="p">)</span>
+    <span class="n">meanspec_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">show_meanspec</span><span class="p">)</span>
+
+    <span class="c1"># show/hide grid lines</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_grid_line</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">xgrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">ygrid</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">grid_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show grid lines&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">grid_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">show_grid_line</span><span class="p">)</span>
+
+    <span class="n">df</span> <span class="o">=</span> <span class="n">mean_spectrum</span><span class="o">.</span><span class="n">data</span>
+    <span class="n">spec1d_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">spec1d_figure</span><span class="p">,</span> <span class="n">spec1d_source</span> <span class="o">=</span> <span class="n">spectrum</span><span class="p">(</span><span class="n">spec1d_df</span><span class="p">)</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">x_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span>
+    <span class="n">spec1d_figure</span><span class="o">.</span><span class="n">yaxis</span><span class="o">.</span><span class="n">major_label_orientation</span> <span class="o">=</span> <span class="s2">&quot;vertical&quot;</span>
+
+    <span class="n">mob_df</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+    <span class="n">mob_figure</span><span class="p">,</span> <span class="n">mob_source</span> <span class="o">=</span> <span class="n">mobilogram</span><span class="p">(</span><span class="n">mob_df</span><span class="p">,</span> <span class="n">transposed</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">mob_figure</span><span class="o">.</span><span class="n">y_range</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span>
+
+    <span class="c1"># add taptool</span>
+    <span class="n">pixel_grid</span> <span class="o">=</span> <span class="n">image_figure</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;image&quot;</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">tap</span> <span class="o">=</span> <span class="n">TapTool</span><span class="p">(</span><span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">pixel_grid</span><span class="p">],</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;replace&quot;</span><span class="p">)</span>
+    <span class="n">image_figure</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">tap</span><span class="p">)</span>
+    <span class="n">tap_div</span> <span class="o">=</span> <span class="n">Div</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;Selected index&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">tap_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">new</span>
+
+        <span class="k">if</span> <span class="n">selected_indices</span><span class="p">:</span>
+            <span class="n">selected_index</span> <span class="o">=</span> <span class="n">selected_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">dataset</span><span class="p">[</span><span class="n">selected_index</span><span class="p">]</span><span class="o">.</span><span class="n">data</span>
+            <span class="n">heatmap_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span>
+            <span class="n">spec1d_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="n">mob_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+            <span class="n">tap_div</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Selected index: </span><span class="si">{</span><span class="n">selected_indices</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="c1"># only one pixel could be selected once</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">selected_indices</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">image_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">selected_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="n">image_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">tap_callback</span><span class="p">)</span>
+
+    <span class="c1"># add box selection tool(for future ROI selection)</span>
+    <span class="n">box_select</span> <span class="o">=</span> <span class="n">BoxSelectTool</span><span class="p">(</span><span class="n">renderers</span><span class="o">=</span><span class="p">[</span><span class="n">pixel_grid</span><span class="p">])</span>
+    <span class="n">image_figure</span><span class="o">.</span><span class="n">add_tools</span><span class="p">(</span><span class="n">box_select</span><span class="p">)</span>
+    <span class="n">box_select_div</span> <span class="o">=</span> <span class="n">Div</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">&quot;Selected index&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">box_select_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">selected_indices</span> <span class="o">=</span> <span class="n">new</span>
+        <span class="k">if</span> <span class="n">selected_indices</span><span class="p">:</span>
+            <span class="n">box_select_div</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">selected_indices</span><span class="p">)</span><span class="si">}</span><span class="s2"> pixels selected&quot;</span>
+
+    <span class="n">image_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">box_select_callback</span><span class="p">)</span>
+
+    <span class="c1"># peak list</span>
+    <span class="n">peak_rect_data</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="c1"># if min=max, the width is 1 unit</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;width&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">width</span>
+    <span class="p">)</span>
+    <span class="n">peak_rect_data</span><span class="p">[</span><span class="s2">&quot;height&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;max&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">peak_extents</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span> <span class="s2">&quot;min&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">height</span>
+    <span class="p">)</span>
+
+    <span class="n">peak_rect_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_rect_data</span><span class="p">)</span>
+    <span class="n">peak_boxes</span> <span class="o">=</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">rect</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">=</span><span class="s2">&quot;x&quot;</span><span class="p">,</span>
+        <span class="n">y</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">,</span>
+        <span class="n">width</span><span class="o">=</span><span class="s2">&quot;width&quot;</span><span class="p">,</span>
+        <span class="n">height</span><span class="o">=</span><span class="s2">&quot;height&quot;</span><span class="p">,</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">peak_rect_source</span><span class="p">,</span>
+        <span class="n">color</span><span class="o">=</span><span class="s2">&quot;steelblue&quot;</span><span class="p">,</span>
+        <span class="n">fill_alpha</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="n">line_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># checkbox</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot_peak_box</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="n">peak_boxes</span><span class="o">.</span><span class="n">visible</span> <span class="o">=</span> <span class="n">new</span>
+
+    <span class="n">peak_checkbox</span> <span class="o">=</span> <span class="n">Checkbox</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Show peaks&quot;</span><span class="p">,</span> <span class="n">active</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">peak_checkbox</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="n">plot_peak_box</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">look_into_peak</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># index start from 0</span>
+        <span class="n">peak_idx</span> <span class="o">=</span> <span class="n">new</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span> <span class="o">=</span> <span class="n">peak_rect_data</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">]</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">x</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="n">width</span> <span class="o">/</span> <span class="n">height</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">y</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">y</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">h</span> <span class="o">*</span> <span class="mf">1.5</span>
+        <span class="c1"># peak info</span>
+        <span class="n">mz</span><span class="p">,</span> <span class="n">mobility</span> <span class="o">=</span> <span class="n">peak_list</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">][[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;mobility_values&quot;</span><span class="p">]]</span>
+        <span class="n">mz_min</span><span class="p">,</span> <span class="n">mz_max</span><span class="p">,</span> <span class="n">mob_min</span><span class="p">,</span> <span class="n">mob_max</span> <span class="o">=</span> <span class="n">peak_extents</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">peak_idx</span><span class="p">][[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span> <span class="s2">&quot;mobility_values&quot;</span><span class="p">]]</span>
+
+        <span class="c1"># pixel-wise intensity</span>
+        <span class="c1"># image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]</span>
+        <span class="c1"># peak_intensities = image_data.groupby(&quot;frame_indices&quot;)[&quot;intensity_values&quot;].sum()</span>
+
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="p">[:,</span> <span class="n">mob_min</span><span class="p">:</span><span class="n">mob_max</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">mz_min</span><span class="p">:</span><span class="n">mz_max</span><span class="p">,</span> <span class="s2">&quot;raw&quot;</span><span class="p">]</span>
+        <span class="n">peak_intensities</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">bin_intensities</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;rt_values&quot;</span><span class="p">])[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_intensities</span>
+        <span class="n">image_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;normalized&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">peak_intensities</span> <span class="o">/</span> <span class="n">peak_intensities</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+        <span class="n">image_figure</span><span class="o">.</span><span class="n">title</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;MS Image m/z: </span><span class="si">{</span><span class="n">mz</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> 1/K_0: </span><span class="si">{</span><span class="n">mobility</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="n">peak_table_source</span> <span class="o">=</span> <span class="n">ColumnDataSource</span><span class="p">(</span><span class="n">peak_list</span><span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mz_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;m/z&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;1/K0&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">TableColumn</span><span class="p">(</span>
+            <span class="n">field</span><span class="o">=</span><span class="s2">&quot;total_intensity&quot;</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="s2">&quot;total peak intensity&quot;</span><span class="p">,</span>
+            <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span>
+
+    <span class="n">peak_table</span> <span class="o">=</span> <span class="n">DataTable</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="n">peak_table_source</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">580</span><span class="p">)</span>
+    <span class="n">peak_table_source</span><span class="o">.</span><span class="n">selected</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;indices&quot;</span><span class="p">,</span> <span class="n">look_into_peak</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">range_callback</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">):</span>
+        <span class="c1"># current data</span>
+        <span class="n">df_view</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span>
+            <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                <span class="o">&amp;</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
+            <span class="p">),</span>
+        <span class="p">]</span>
+
+        <span class="n">spec1d_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mz_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+        <span class="n">mob_source</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">df_view</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">)[</span><span class="s2">&quot;intensity_values&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">()</span>
+
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">x_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;start&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+    <span class="n">heatmap_figure</span><span class="o">.</span><span class="n">y_range</span><span class="o">.</span><span class="n">on_change</span><span class="p">(</span><span class="s2">&quot;end&quot;</span><span class="p">,</span> <span class="n">range_callback</span><span class="p">)</span>
+
+    <span class="c1"># compute CCS</span>
+    <span class="n">ccs_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Compute CCS value&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;success&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">compute_ccs</span><span class="p">():</span>
+        <span class="c1"># already computed</span>
+        <span class="k">if</span> <span class="s2">&quot;ccs_values&quot;</span> <span class="ow">in</span> <span class="n">peak_table_source</span><span class="o">.</span><span class="n">data</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">calibrator</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">ccs_calibrator</span><span class="p">()</span>
+            <span class="n">ccs_values</span> <span class="o">=</span> <span class="n">calibrator</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span>
+                <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;mz_values&quot;</span><span class="p">],</span> <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;mobility_values&quot;</span><span class="p">],</span> <span class="n">charge</span><span class="o">=</span><span class="mi">1</span>
+            <span class="p">)</span>
+            <span class="n">peak_list</span><span class="p">[</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ccs_values</span>
+            <span class="n">peak_table_source</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ccs_values</span>
+            <span class="n">peak_table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">TableColumn</span><span class="p">(</span>
+                    <span class="n">field</span><span class="o">=</span><span class="s2">&quot;ccs_values&quot;</span><span class="p">,</span>
+                    <span class="n">title</span><span class="o">=</span><span class="s2">&quot;CCS&quot;</span><span class="p">,</span>
+                    <span class="n">formatter</span><span class="o">=</span><span class="n">NumberFormatter</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s2">&quot;0.000&quot;</span><span class="p">),</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+
+    <span class="n">ccs_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">compute_ccs</span><span class="p">)</span>
+
+    <span class="c1"># export peak list</span>
+    <span class="c1"># TODO add more format options</span>
+    <span class="n">export_button</span> <span class="o">=</span> <span class="n">Button</span><span class="p">(</span><span class="n">label</span><span class="o">=</span><span class="s2">&quot;Export peak list&quot;</span><span class="p">,</span> <span class="n">button_type</span><span class="o">=</span><span class="s2">&quot;success&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">export_csv</span><span class="p">():</span>
+        <span class="n">csv_data</span> <span class="o">=</span> <span class="n">peak_list</span><span class="o">.</span><span class="n">to_csv</span><span class="p">()</span>
+        <span class="c1"># csv_data = csv_data.replace(&quot;\n&quot;, &quot;\\n&quot;).replace(&quot;\r&quot;, &quot;\\r&quot;).replace(&#39;&quot;&#39;, &#39;\\&quot;&#39;)</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="s2">&quot;peak_list.csv&quot;</span>
+        <span class="n">export_button</span><span class="o">.</span><span class="n">js_on_click</span><span class="p">(</span>
+            <span class="n">CustomJS</span><span class="p">(</span>
+                <span class="n">args</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">csv_data</span><span class="o">=</span><span class="n">csv_data</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">),</span>
+                <span class="n">code</span><span class="o">=</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">            const filetext = csv_data;</span>
+<span class="s2">    </span>
+<span class="s2">            const blob = new Blob([filetext], { type: &#39;text/csv;charset=utf-8;&#39; });</span>
+<span class="s2">    </span>
+<span class="s2">            //addresses IE</span>
+<span class="s2">            if (navigator.msSaveBlob) {</span>
+<span class="s2">                navigator.msSaveBlob(blob, filename);</span>
+<span class="s2">            } else {</span>
+<span class="s2">                const link = document.createElement(&#39;a&#39;);</span>
+<span class="s2">                if (link.download !== undefined) {</span>
+<span class="s2">                    const url = URL.createObjectURL(blob);</span>
+<span class="s2">                    link.setAttribute(&#39;href&#39;, url);</span>
+<span class="s2">                    link.setAttribute(&#39;download&#39;, filename);</span>
+<span class="s2">                    link.style.visibility = &#39;hidden&#39;;</span>
+<span class="s2">                    document.body.appendChild(link);</span>
+<span class="s2">                    link.click();</span>
+<span class="s2">                    document.body.removeChild(link);</span>
+<span class="s2">                }</span>
+<span class="s2">            }</span>
+<span class="s2">        &quot;&quot;&quot;</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="c1"># Assign the Python callback to the button</span>
+    <span class="n">export_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">export_csv</span><span class="p">)</span>
+
+    <span class="n">layouts</span> <span class="o">=</span> <span class="n">layout</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="p">[</span><span class="n">image_figure</span><span class="p">,</span> <span class="n">heatmap_figure</span><span class="p">,</span> <span class="n">mob_figure</span><span class="p">],</span>
+            <span class="p">[</span>
+                <span class="n">peak_table</span><span class="p">,</span>
+                <span class="n">spec1d_figure</span><span class="p">,</span>
+                <span class="n">column</span><span class="p">(</span>
+                    <span class="n">peak_checkbox</span><span class="p">,</span>
+                    <span class="n">grid_checkbox</span><span class="p">,</span>
+                    <span class="n">tic_button</span><span class="p">,</span>
+                    <span class="n">meanspec_button</span><span class="p">,</span>
+                    <span class="n">ccs_button</span><span class="p">,</span>
+                    <span class="n">export_button</span><span class="p">,</span>
+                    <span class="n">box_select_div</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">],</span>
+        <span class="p">],</span>
+        <span class="n">sizing_mode</span><span class="o">=</span><span class="s2">&quot;scale_width&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">layouts</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Yinyue Zhu.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
