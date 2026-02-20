@@ -216,11 +216,11 @@ def heatmap(frame: "Frame") -> Tuple[figure, ColumnDataSource]:
     width, height = frame.resolution
 
     f = figure(
-        title=r"m/z vs 1/K_0 heatmap",
+        title=r"Intensity heatmap",
         x_range=(frame.mz_domain.min(), frame.mz_domain.max()),
         y_range=(frame.mobility_domain.min(), frame.mobility_domain.max()),
         x_axis_label="m/z",
-        y_axis_label="1/K_0",
+        y_axis_label=r"$$1/K_0$$",
         toolbar_location="right",
         background_fill_color="black",
         aspect_ratio=1,
@@ -316,7 +316,7 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
             title="Mobilogram",
             toolbar_location="right",
             x_axis_label="intensity",
-            y_axis_label="1/K_0",
+            y_axis_label=r"$$1/K_0$$",
         )
 
         mob = f.line(
@@ -330,7 +330,7 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
         f = figure(
             title="Mobilogram",
             toolbar_location="right",
-            x_axis_label="1/K_0",
+            x_axis_label=r"$$1/K_0$$",
             y_axis_label="intensity",
         )
 
@@ -431,16 +431,43 @@ def feature_list(data):
 
 
 # make a function a Bokeh application
-def bkapp(func):
-    def wrapper(*args, **kwargs):
-        def app(doc: Document):
-            ui = func(*args, **kwargs)
-            doc.add_root(ui)
+# def bkapp(func):
+#     def wrapper(*args, **kwargs):
+#         def app(doc: Document):
+#             ui = func(*args, **kwargs)
+#             doc.add_root(ui)
 
-        return app
+#         return app
 
-    return wrapper
+#     return wrapper
 
+def bkapp(theme=None):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            def app(doc):
+                if theme is not None:
+                    doc.theme = theme
+
+                ui = func(*args, **kwargs) # plots
+                doc.add_root(ui)
+            return app
+        return wrapper
+    return decorator
+
+from bokeh.themes import Theme
+theme = Theme(json={
+    "attrs": {
+        "Axis": {
+            "axis_label_text_font_size": "20pt"
+        },
+        "Title": {
+            "text_font_size": "20pt"
+        },
+        "Legend": {
+            "label_text_font_size": "20pt"
+        }
+    }
+})
 
 @bkapp
 def heatmap_layouts(
@@ -917,7 +944,7 @@ def plot(frame: "Frame", **kwargs) -> Callable[[Document], None]:
     return lambda doc: (heatmap_layouts(doc, frame=frame, **kwargs))
 
 
-@bkapp
+@bkapp(theme=theme)
 def _visualize(
     dataset: "MSIDataset",
     mean_spectrum: "Frame",
@@ -1177,6 +1204,6 @@ def _visualize(
                 ),
             ],
         ],
-        sizing_mode="fixed",
+        sizing_mode="scale_width",
     )
     return layouts
