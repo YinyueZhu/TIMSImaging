@@ -1,0 +1,22 @@
+project:
+  type: book
+book:
+  title: "Case study 2: microbial culture natural product dataset"
+  author: "Yinyue Zhu"
+  chapters:
+    - index.qmd
+    - 5-microbial_culture.ipynb
+    - 6-precursor_selection.qmd
+# toc: true
+# toc-location: left
+# number-sections: true
+execute:
+  echo: true
+format:
+  html:
+    theme: cosmo
+    toc: true
+  pdf:
+    documentclass: scrreprt
+
+

@@ -1,0 +1,6 @@
+---
+title: "Overview"
+---
+
+In this case study, we analyze a MALDI-TIMS-TOF tryptic peptide dataset of mouse kidney tissue. First we processed the data in TIMSImaging, then performed segmentation in Cardinal, in addition we compared processing workflow with/without ion mobility. The dataset is from Melanie Föll Lab and available at MassIVE (MSV000096373).  
+Li, M., Meyer, L., Meier, N., Witte, J., Maldacker, M., Seredynska, A., Schueler, J., Schilling, O. and Föll, M. (2025), Spatial Proteomics by Parallel Accumulation-Serial Fragmentation Supported MALDI MS/MS Imaging: A First Glance Into Multiplexed and Spatial Peptide Identification. Rapid Commun Mass Spectrom, 39: e10006. https://doi.org/10.1002/rcm.10006

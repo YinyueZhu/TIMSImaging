@@ -1,0 +1,568 @@
+---
+title: "Differential precursor selection in R"
+execute:
+  warning: false
+  message: false
+output:
+  html_document: default
+---
+
+## Introduction
+
+In this part, we continue to perform differential abundance analysis on the processed imzML from Section 1 to find precursors that present high intensity in the microbial culture region. First we apply a non-spatial linear fixed effects model, then explore modeling with spatial correlation. In addition, we also contrast differential analysis on features with and without ion mobility.
+
+### Package setup
+We will use `Cardinal` for data import and normalization, `spaMM` for differential analysis and `ggplot2` for visualization. If the packages are not yet installed, run following code in a R session:
+```{r}
+#| eval: false
+#| echo: true
+#| warning: false
+#| message: false
+#| collapse: true
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("Cardinal")
+package.install("spaMM")
+package.install("ggplot2")
+```
+
+Then load the packages:
+```{r setup}
+library(Cardinal)
+library(spaMM)
+library(ggplot2)
+```
+
+### Load processed dataset
+
+First we load the processd imzML from TIMSImaging into Cardinal:
+```{r load data}
+mse <- readMSIData("D:\\dataset\\laura_gordon_2.imzML")
+mse
+```
+
+check the regions:
+```{r}
+image(mse)
+```
+
+### Data preparation
+
+Then we label 3 microbioal regions as a group(`culture`) and the matrix region as the other group(`media`), which is consistent with the literature.
+
+```{r define region}
+coords <- coord(mse)
+pixel_label <- ifelse(coords$x > 200 & coords$y > 100, "media", "culture")
+pData(mse)$label <- factor(pixel_label)
+pData(mse)
+```
+
+To reduce the complexity of spatial modeling, we just compare the *G.arilaitensis*(bottom middle) region(`culture`) and the media/matrix region(`media`). For targets in following MS2 acquisition, we want to exclude matrix/media ions and select precursors spatially associated with the microbioal culture region. Specifically, a desired precursor should present high intensity in the microbioal culture region and minimum intensity in the matrix/media region.\
+
+```{r}
+mse_subset <- subsetPixels(mse, x>120, y>100)
+image(mse_subset)
+```
+
+```{r normalization}
+mse_norm <- process(normalize(mse, method="rms"))
+```
+
+
+First we try differential abundance analysis on a feature(mz=428.26) reported in the paper. Extract the ion image as a data frame, with pixels labeled as either in 'media' or 'culture' region.
+
+```{r create dataframe}
+m <- 428.26
+i <- findInterval(m, mz(mse_subset))+1
+intensity <- spectraData(mse_subset)$intensity[i,]
+df <- data.frame(
+  intensity = intensity,
+  label = pData(mse_subset)$label,
+  x = pData(mse_subset)$x,
+  y = pData(mse_subset)$y
+)
+# set the media group as the baseline
+df$label <- relevel(df$label, ref="media")
+```
+
+Plot its ion image:
+```{r}
+image(mse_subset, i=i)
+```
+
+### Fitting a non-spatial model
+
+Now we fit a non-spatial linear fixed effect model on this feature. Let $s$ be a pixel position, $k$ be a group label, then the intensity is a linear response to group label:
+$$y_s=\mu_k+\varepsilon_s$$
+where $y_s$ is the intensity at $s$, the fixed effect $\mu_k$ is the mean intensity in group $k$, $\varepsilon_s$ is the random error.
+
+```{r}
+model <- fitme(
+    intensity ~ label,
+    data = df,
+    method = "REML",
+)
+summary.HLfit(model, details=c(p_value="Wald"))
+```
+
+The result shows that ion m/z=428.26 present higher intensity in the culture region(`labelculture`) than the media region(`intercept`) with high significance score. However, in the non-spatial modeling the pixels were considered as independent samples, which is not true(pixels are highly correlated), the degree of freedom is overstimated and resulted in extremely small p-vales(type-I error).
+
+### Fitting a spatial model
+
+Next, we try a spatial linear mixed effect model with Matern correlation. The model could be expressed as
+$$y_s=\mu_k+U_s+\varepsilon_s$$
+where $y_s$ is the intensity at $s$, the fixed effect $\mu_k$ is the mean intensity in group $k$, the random effect $U_s$ is the Matérn random field at $s$, and $\varepsilon_s$ is the random error.
+
+```{r}
+model <- fitme(
+    intensity ~ label + Matern(1|x+y),
+    data = df,
+    method = "REML",
+)
+summary.HLfit(model, details=c(p_value="Wald"))
+```
+
+The spatial model also shows the differential abundance between two regions, but with more reasonable p-value.
+
+###Fitting non-spatial and spatial model on all features
+Then we can loop over all features by fitting a model on each of them:
+
+```{r}
+nonspatial_de <-function(mse){
+  mz_values <- mz(mse)
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  intensity_i <- spectraData(mse)$intensity[i, ]
+  
+  # create a subset data frame
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse)$label,
+    x = coord(mse_subset)$x,
+    y = coord(mse_subset)$y
+  )
+  # set the media group as the baseline
+  sub_df$label <- relevel(sub_df$label, ref="media")
+  # fit a linear fixed effect model
+  model <- tryCatch({
+    fitme(intensity ~ label,
+          data = sub_df,
+          method = "REML")
+  }, error = function(e) NULL)
+  
+  # summarize the results
+  if (!is.null(model)) {
+    #coefs <- fixed.effects(model)
+    stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+    
+    return(data.frame(
+      mz = mz_values[i],
+      index = i,
+      intercept = stats[1,1],
+      label_effect = stats[1,2],
+      t_value = stats[2,3],
+      p_value = stats[2,4]
+    ))
+  } else {
+    return(NULL)
+  }
+})
+# combine all results
+fit_results_df <- do.call(rbind, fit_results)
+fit_results_df$intensity <- fit_results_df$intercept+fit_results_df$label_effect
+fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 20)
+return(fit_results_df)
+}
+
+spatial_de <- function(mse){
+  mz_values <- mz(mse)
+  fit_results <- lapply(seq_along(mz_values), function(i) {
+    message("Fitting feature", i)
+    intensity_i <- spectraData(mse)$intensity[i, ]
+  
+    sub_df <- data.frame(
+      intensity = intensity_i,
+      label = pData(mse)$label,
+      x = coord(mse)$x,
+      y = coord(mse)$y
+    )
+    sub_df$label <- relevel(sub_df$label, ref="media")
+  
+    model <- tryCatch({
+      fitme(intensity ~ label + Matern(1|x+y),
+            data = sub_df,
+            fixed = list(nu=0.5),
+            control.HLfit = list(algebra="spcorr", NbThreads=8),
+            method = "REML")
+    }, error = function(e) NULL)
+    
+    if (!is.null(model)) {
+      coefs <- fixed.effects(model)
+      stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+      
+      return(data.frame(
+        mz = mz_values[i],
+        intercept = coefs[1],
+        label_effect = coefs[2],
+        t_value = stats[2,3],
+        p_value = stats[2,4]
+      ))
+    } else {
+      return(NULL)
+    }
+  })
+  fit_results_df <- do.call(rbind, fit_results)
+  fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+  fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 20)
+  return(fit_results_df)
+}
+```
+
+Summarize the results:
+```{r}
+fit_results_df <- nonspatial_de(mse_subset)
+```
+
+Here is the code for spatial model: 
+```{r}
+#| eval: false
+#| echo: true
+#| warning: false
+#| message: false
+#| collapse: true
+#| 
+spatial_de <- function(mse){
+  mz_values <- mz(mse)
+  fit_results <- lapply(seq_along(mz_values), function(i) {
+    message("Fitting feature", i)
+    intensity_i <- spectraData(mse)$intensity[i, ]
+  
+    sub_df <- data.frame(
+      intensity = intensity_i,
+      label = pData(mse)$label,
+      x = coord(mse)$x,
+      y = coord(mse)$y
+    )
+    sub_df$label <- relevel(sub_df$label, ref="media")
+  
+    model <- tryCatch({
+      fitme(intensity ~ label + Matern(1|x+y),
+            data = sub_df,
+            fixed = list(nu=0.5),
+            control.HLfit = list(algebra="spcorr", NbThreads=8),
+            method = "REML")
+    }, error = function(e) NULL)
+    
+    if (!is.null(model)) {
+      coefs <- fixed.effects(model)
+      stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+      
+      return(data.frame(
+        mz = mz_values[i],
+        intercept = coefs[1],
+        label_effect = coefs[2],
+        t_value = stats[2,3],
+        p_value = stats[2,4]
+      ))
+    } else {
+      return(NULL)
+    }
+  })
+  fit_results_df <- do.call(rbind, fit_results)
+  fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+  fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 20)
+  return(fit_results_df)
+}
+```
+
+It takes hours to run the spatial model on all the features. For presentation here we load the pre-computed results:
+```{r}
+
+```
+
+(plot a volcano plot here) With non-spatial modeling, we obtained 5 out of 12 precursors reported by SCiLS lab in the literature.\
+Fitting spatial models However, we simply treated pixels as replicates and ignored their correlations, the consequence is the uncertainty of the means are underestimated. To get more accurate differntial changes considering spatial correlation, next we use a mixed effect model with spatial random effect. Since fitting spatial models is time-consuming, we just illustrate this on top features based on the non-spatial results.
+
+
+To simply the spatial random field, we also subset the pixels. Only the bacterial region and the matrix/media region were used to fit the spatial models. Here we use the Matern correlation with fixed smoothness, basically the correlation between pixels decays exponentially as the distance increases.
+
+
+Now we get results with more reasonable p-values.
+
+```{r}
+library(ggplot2)
+
+ggplot(fit_results_sp_df, aes(x = log2_foldchange, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Volcano Plot of m/z Features",
+    x = "log2(fold change)",
+    y = "-log10(p-value)"
+  ) +
+  coord_cartesian(xlim = c(-5, 5), ylim=c(0,15))
+  theme_minimal()
+```
+
+```{r}
+
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  intensity_i <- spectraData(mse_subset)$intensity[i, ]
+  
+  # create a subset data frame
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse_subset)$label,
+    x = coord(mse_subset)$x,
+    y = coord(mse_subset)$y
+  )
+  # set the media group as the baseline
+  sub_df$label <- relevel(sub_df$label, ref="media")
+  # fit a linear fixed effect model
+  model <- tryCatch({
+    fitme(intensity ~ label,
+          data = sub_df,
+          method = "REML")
+  }, error = function(e) NULL)
+  
+  # summarize the results
+  if (!is.null(model)) {
+    coefs <- fixed.effects(model)
+    stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+    
+    return(data.frame(
+      mz = mz_values[i],
+      index = i,
+      intercept = coefs[1],
+      label_effect = coefs[2],
+      t_value = stats[2,3],
+      p_value = stats[2,4]
+    ))
+  } else {
+    return(NULL)
+  }
+})
+# combine all results
+fit_results_df <- do.call(rbind, fit_results)
+fit_results_df$intensity <- fit_results_df$intercept+fit_results_df$label_effect
+fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 50)
+
+```
+
+```{r}
+ggplot(fit_results_df, aes(x = log2_foldchange, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Volcano Plot of m/z Features",
+    x = "log2(fold change)",
+    y = "-log10(p-value)"
+  ) +
+  coord_cartesian(xlim = c(-5, 5), ylim=c(0,50))
+  theme_minimal()
+```
+
+### Processing TIMSCONVERT data
+
+```{r}
+msa_timsconvert <- readMSIData("natural_product_timsconvert_output/250321_JB182_Pen12.imzML")
+mse_timsconvert_binned <- bin(msa_timsconvert, resolution=20, units="ppm")
+centroided(mse_timsconvert_binned)<-FALSE
+set.seed(42, kind="L'Ecuyer-CMRG")
+peaks_timsconvert <- peakProcess(mse_timsconvert_binned, SNR=6, tolerance=400, units="ppm")
+```
+
+```{r}
+peaks_timsconvert <- summarizeFeatures(peaks_timsconvert)
+max_intensity <- max(fData(peaks_timsconvert)$mean)
+intensity_filter <- fData(peaks_timsconvert)$mean > 0.01*max_intensity
+peaks_timsconvert <- subsetFeatures(peaks_timsconvert, select=intensity_filter)
+peaks_timsconvert
+```
+
+```{r}
+pData(peaks_timsconvert)$label <- factor(pixel_label)
+mse_subset <- subsetPixels(peaks_timsconvert, x>120, y>100)
+mz_values <- mz(mse_subset)
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  intensity_i <- spectraData(mse_subset)$intensity[i, ]
+  
+  # create a subset data frame
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse_subset)$label,
+    x = coord(mse_subset)$x,
+    y = coord(mse_subset)$y
+  )
+  # set the media group as the baseline
+  sub_df$label <- relevel(sub_df$label, ref="media")
+  # fit a linear fixed effect model
+  model <- tryCatch({
+    fitme(intensity ~ label,
+          data = sub_df,
+          method = "REML")
+  }, error = function(e) NULL)
+  
+  # summarize the results
+  if (!is.null(model)) {
+    coefs <- fixed.effects(model)
+    stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+    
+    return(data.frame(
+      mz = mz_values[i],
+      index = i,
+      intercept = coefs[1],
+      label_effect = coefs[2],
+      t_value = stats[2,3],
+      p_value = stats[2,4]
+    ))
+  } else {
+    return(NULL)
+  }
+})
+# combine all results
+fit_results_df <- do.call(rbind, fit_results)
+fit_results_df$intensity <- fit_results_df$intercept+fit_results_df$label_effect
+fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 50)
+```
+
+```{r}
+nonspatial_de <-function(mse){
+  mz_values <- mz(mse)
+fit_results <- lapply(seq_along(mz_values), function(i) {
+  intensity_i <- spectraData(mse)$intensity[i, ]
+  
+  # create a subset data frame
+  sub_df <- data.frame(
+    intensity = intensity_i,
+    label = pData(mse)$label,
+    x = coord(mse_subset)$x,
+    y = coord(mse_subset)$y
+  )
+  # set the media group as the baseline
+  sub_df$label <- relevel(sub_df$label, ref="media")
+  # fit a linear fixed effect model
+  model <- tryCatch({
+    fitme(intensity ~ label,
+          data = sub_df,
+          method = "REML")
+  }, error = function(e) NULL)
+  
+  # summarize the results
+  if (!is.null(model)) {
+    coefs <- fixed.effects(model)
+    stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+    
+    return(data.frame(
+      mz = mz_values[i],
+      index = i,
+      intercept = coefs[1],
+      label_effect = coefs[2],
+      t_value = stats[2,3],
+      p_value = stats[2,4]
+    ))
+  } else {
+    return(NULL)
+  }
+})
+# combine all results
+fit_results_df <- do.call(rbind, fit_results)
+fit_results_df$intensity <- fit_results_df$intercept+fit_results_df$label_effect
+fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 20)
+return(fit_results_df)
+}
+
+spatial_de <- function(mse){
+  mz_values <- mz(mse)
+  fit_results <- lapply(seq_along(mz_values), function(i) {
+    message("Fitting feature", i)
+    intensity_i <- spectraData(mse)$intensity[i, ]
+  
+    sub_df <- data.frame(
+      intensity = intensity_i,
+      label = pData(mse)$label,
+      x = coord(mse)$x,
+      y = coord(mse)$y
+    )
+    sub_df$label <- relevel(sub_df$label, ref="media")
+  
+    model <- tryCatch({
+      fitme(intensity ~ label + Matern(1|x+y),
+            data = sub_df,
+            fixed = list(nu=0.5),
+            control.HLfit = list(algebra="spcorr", NbThreads=8),
+            method = "REML")
+    }, error = function(e) NULL)
+    
+    if (!is.null(model)) {
+      coefs <- fixed.effects(model)
+      stats <- summary.HLfit(model, details=c(p_value="Wald"), verbose=FALSE)[['beta_table']]
+      
+      return(data.frame(
+        mz = mz_values[i],
+        intercept = coefs[1],
+        label_effect = coefs[2],
+        t_value = stats[2,3],
+        p_value = stats[2,4]
+      ))
+    } else {
+      return(NULL)
+    }
+  })
+  fit_results_df <- do.call(rbind, fit_results)
+  fit_results_df$log2_foldchange <- log2((fit_results_df$intercept+fit_results_df$label_effect)/fit_results_df$intercept)
+  fit_results_df$neg_log10_p <- pmin(-log10(fit_results_df$p_value), 20)
+  return(fit_results_df)
+}
+```
+
+```{r}
+peaks_timsconvert_subset <- subsetPixels(peaks_timsconvert, x>120, y>100)
+fit_results_df_timsconvert <- nonspatial_de(peaks_timsconvert_subset)
+
+```
+
+```{r}
+ggplot(fit_results_df, aes(x = log2_foldchange, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Non-spatial model with ion mobility",
+    x = "log2(fold change)",
+    y = "-log10(p-value)"
+  ) +
+  coord_fixed(ratio=1, xlim = c(-5, 5), ylim=c(0,10))
+```
+
+```{r}
+ggplot(fit_results_sp_df_timsconvert, aes(x = log2_foldchange, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Spatial model without ion mobility",
+    x = "log2(fold change)",
+    y = "-log10(p-value)"
+  ) +
+  coord_fixed(ratio=1, xlim = c(-5, 5), ylim=c(0,10))
+```
+
+```{r}
+ggplot(fit_results_sp_df, aes(x = log2_foldchange, y = neg_log10_p)) +
+  geom_point(alpha = 0.7) +
+  geom_hline(yintercept = -log10(0.05), color = "red", linetype = "dashed") +  # p=0.05 threshold
+  geom_vline(xintercept = 0, color = "blue", linetype = "dotted") +
+  labs(
+    title = "Spatial model with ion mobility",
+    x = "log2(fold change)",
+    y = "-log10(p-value)"
+  ) +
+  coord_fixed(ratio=1, xlim = c(-5, 5), ylim=c(0,10))
+```

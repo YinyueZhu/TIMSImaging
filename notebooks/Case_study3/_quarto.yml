@@ -1,0 +1,21 @@
+project:
+  type: book
+
+book:
+  title: "Case_study3: mouse skin lipids dataset"
+  author: "Yinyue Zhu"
+  chapters:
+    - index.qmd
+    - 7-lipids_annotation.ipynb
+# toc: true
+# toc-location: left
+# number-sections: true
+execute:
+  echo: true
+format:
+  html:
+    theme: cosmo
+    toc: true
+  pdf:
+    documentclass: scrreprt
+
