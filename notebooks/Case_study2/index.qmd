@@ -1,9 +1,0 @@
----
-title: "Overview"
----
-
-In this case study, we performe differential abundance analysis on a MALDI-TIMS-MS1 natural products dataset of bacterial-fungal co-culture. First we process the data in TIMSImaging, followed by a non-spaital Wilcoxon rank-sum test to get results comparable to the literature. Then we explore further using mixed effect models in R, contrast 1) non-spatial and spatial modeling, 2) processing with and without ion mobility. The purpose of this case study is to show that TIMSImaging creates informative features, which enables selecting precursors associated with specific regions as prioritized targets in the following MS2 imaging experiment design.  
-
-The dataset is from Laura Sanchez Lab and available on MASSIVE(MSV000097837).  
-Shepherd, R. A., G. T. Luu and L. M. Sanchez (2025). "MALDI-TIMS-MS(2) Imaging and Annotation of Natural Products in Fungal-Bacterial Coculture." Anal Chem 97(35): 18867-18872.
-

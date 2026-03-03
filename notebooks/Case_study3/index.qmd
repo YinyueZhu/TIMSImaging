@@ -1,7 +1,0 @@
----
-title: "Overview"
----
-
-In this case study, we perform feature annotation on a mouse skin lipids dataset. First we process the data to extract a feature list, then calculate collision cross section (CCS) values from ion mobility. Annotation is base d on m/z and CCS matching against CCS Compendium. 
-
-The dataset is from and available at [https://zenodo.org/records/18713016](https://zenodo.org/records/18713016).
