@@ -20,11 +20,81 @@
     ]
   },
   {
-    "objectID": "2-mouse_kidney.html#intro",
-    "href": "2-mouse_kidney.html#intro",
+    "objectID": "2-mouse_kidney.html#data_import",
+    "href": "2-mouse_kidney.html#data_import",
     "title": "2  Data processing in TIMSImaging",
-    "section": "",
-    "text": "2.1.1 Load MALDI-TIMS-TOF raw data\nSuppose we know nothing about this dataset. First we load the dataset and print basic information like pixel number and data range.\n\nbruker_d_folder_name = r\"D:\\dataset\\Kidney_MS1_ITO6.d\"\ndataset = timsimaging.spectrum.MSIDataset(bruker_d_folder_name)\ndataset\n\nMSIDataset with 38267 pixels\n        mz range: 799.998-2500.007\n        mobility range: 1.200-2.600\n        \n\n\n\n\n2.1.2 View summary image and tables\nThen we can view the TIC image without any processing, as the TIC intensities are stored in the Frames table in the raw tdf file. Hover on individual pixels to see the details like coordinates and intensity:\n\ndataset.image()\n\n\n  \n\n\n\n\n\nWe can view the underlying data as tables, too\n\n# pixel positions\ndataset.pos\n\n\n\n\n\n\n\n\nXIndexPos\nYIndexPos\n\n\nFrame\n\n\n\n\n\n\n1\n336\n175\n\n\n2\n337\n175\n\n\n3\n338\n175\n\n\n4\n339\n175\n\n\n5\n340\n175\n\n\n...\n...\n...\n\n\n38263\n737\n116\n\n\n38264\n738\n116\n\n\n38265\n739\n116\n\n\n38266\n740\n116\n\n\n38267\n741\n116\n\n\n\n\n38267 rows × 2 columns\n\n\n\n\n# metadata of pixels\ndataset.data.frames\n\n\n\n\n\n\n\n\nId\nTime\nScanMode\nMsMsType\nTimsId\nMaxIntensity\nSummedIntensities\nNumScans\nNumPeaks\nMzCalibration\nT1\nT2\nTimsCalibration\nPropertyGroup\nAccumulationTime\nRampTime\nPressure\nDenoised\n\n\n\n\n0\n0\n0.000000\n20\n0\n64\n0\n0\n1212\n0\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n1\n1\n2.671587\n20\n0\n64\n688\n5346970\n1212\n76165\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n2\n2\n2.941060\n20\n0\n210641\n637\n4998845\n1212\n71095\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n3\n3\n3.210677\n20\n0\n407604\n605\n4793642\n1212\n67948\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n4\n4\n3.480285\n20\n0\n595229\n626\n4705085\n1212\n66534\n1\n25.630938\n23.591317\n1\n1\n59.47\n230.09\n2.055983\n0\n\n\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n\n\n38263\n38263\n10602.755832\n20\n0\n11938087511\n925\n4587513\n1212\n64378\n1\n25.666533\n23.497069\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38264\n38264\n10603.025466\n20\n0\n11938264725\n720\n4511870\n1212\n63215\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38265\n38265\n10603.295060\n20\n0\n11938440038\n775\n4700548\n1212\n66076\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38266\n38266\n10603.564667\n20\n0\n11938622040\n626\n4648396\n1212\n65487\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38267\n38267\n10603.813145\n20\n0\n11938802286\n755\n4574022\n1212\n63950\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n\n\n38268 rows × 18 columns\n\n\n\n\n\n2.1.3 Set region of interest(ROI)\nThe left region is the kidney tissue, we can use the set_ROI method to set the ROI by xmin, xmax, ymin, ymax parameters.\n\ndataset.set_ROI(name='kidney', xmax=500)\n\n\n\n2.1.4 Process selected ROI\nThen we run the processing pipline introduced in the basic use notebook.\n\nresults = dataset.process(sampling_ratio=0.1, frequency_threshold=0.02, tolerance=3, adaptive_window=True, roi='kidney', visualize=True)\n\nComputing mean spectrum...\nTraversing graph...\nFinding local maxima...\nSummarizing...\n\n\n\n\n2.1.5 View peak list\nWe can view the interactive peak list:\n\npeaklist = results[\"peak_list\"]\ntable, _ = timsimaging.plotting.feature_list(results[\"peak_list\"])\nshow(table)\n\n\n  \n\n\n\n\n\n\n\n2.1.6 View intensity distribution\nWe can also visualize the intensity distribution:\n\nresults[\"peak_list\"][\"total_intensity\"].hist()\n\n\n\n\n\n\n\n\n\n\n2.1.7 View Interactive Results\nUser can explore the results in the GUI. By clicking pixels in the image(top left), users can view its mass spectrum(bottom middle), mobilogram(top right) and 2D spectogram combining these two(top middle). Also, users can click entries in the peak list(bottom left) to investigate ion images and spectral details of that peak. The menu(bottom right) provide summarizing functions like TIC image and mean spectrum, as well as file export options. This requires a living Python session to render, here shows a screenshot:\n\nshow(results['viz'])\n\n\n\n\n\n\n2.1.8 Separate ions by ion mobility\nIsobaric ions, or ions with non-distinguishable m/z(for example, isomers) could be separated by ion mobility. As examples shown below, TIMSImaging detected both peaks.\n\nfrom bokeh.layouts import row\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1079, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1080, results=results)\nshow(row(isomer1, isomer2))\n\n\n  \n\n\n\n\n\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1163, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1164, results=results)\nshow(row(isomer1, isomer2))\n\n\n  \n\n\n\n\n\n\n\n\n\n2.1.9 Export the processed data in imzML format\nFinally, we export the processed data as continuous, centroid imzML file for downstream analysis in Cardinal.\n\ntimsimaging.spectrum.export_imzML(dataset, path=r\"D:/dataset/Kidney_MS1_ITO6\", peaks=results)",
+    "section": "2.2 Load MALDI-TIMS-TOF raw data",
+    "text": "2.2 Load MALDI-TIMS-TOF raw data\nSuppose we know nothing about this dataset. First we load the dataset and print basic information like pixel number and data range.\n\nbruker_d_folder_name = r\"D:\\dataset\\Kidney_MS1_ITO6.d\"\ndataset = timsimaging.spectrum.MSIDataset(bruker_d_folder_name)\ndataset\n\nMSIDataset with 38267 pixels\n        mz range: 799.998-2500.007\n        mobility range: 1.200-2.600\n        \n\n\n\n2.2.1 View summary image and tables\nThen we can view the TIC image without any processing, as the TIC intensities are stored in the Frames table in the raw tdf file. Hover on individual pixels to see the details like coordinates and intensity:\n\ndataset.image()\n\n\n  \n\n\n\n\n\nWe can view the underlying data as tables, too\n\n# pixel positions\ndataset.pos\n\n\n\n\n\n\n\n\nXIndexPos\nYIndexPos\n\n\nFrame\n\n\n\n\n\n\n1\n336\n175\n\n\n2\n337\n175\n\n\n3\n338\n175\n\n\n4\n339\n175\n\n\n5\n340\n175\n\n\n...\n...\n...\n\n\n38263\n737\n116\n\n\n38264\n738\n116\n\n\n38265\n739\n116\n\n\n38266\n740\n116\n\n\n38267\n741\n116\n\n\n\n\n38267 rows × 2 columns\n\n\n\n\n# metadata of pixels\ndataset.data.frames\n\n\n\n\n\n\n\n\nId\nTime\nScanMode\nMsMsType\nTimsId\nMaxIntensity\nSummedIntensities\nNumScans\nNumPeaks\nMzCalibration\nT1\nT2\nTimsCalibration\nPropertyGroup\nAccumulationTime\nRampTime\nPressure\nDenoised\n\n\n\n\n0\n0\n0.000000\n20\n0\n64\n0\n0\n1212\n0\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n1\n1\n2.671587\n20\n0\n64\n688\n5346970\n1212\n76165\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n2\n2\n2.941060\n20\n0\n210641\n637\n4998845\n1212\n71095\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n3\n3\n3.210677\n20\n0\n407604\n605\n4793642\n1212\n67948\n1\n25.630815\n23.592239\n1\n1\n59.47\n230.09\n2.055982\n0\n\n\n4\n4\n3.480285\n20\n0\n595229\n626\n4705085\n1212\n66534\n1\n25.630938\n23.591317\n1\n1\n59.47\n230.09\n2.055983\n0\n\n\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n...\n\n\n38263\n38263\n10602.755832\n20\n0\n11938087511\n925\n4587513\n1212\n64378\n1\n25.666533\n23.497069\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38264\n38264\n10603.025466\n20\n0\n11938264725\n720\n4511870\n1212\n63215\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38265\n38265\n10603.295060\n20\n0\n11938440038\n775\n4700548\n1212\n66076\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38266\n38266\n10603.564667\n20\n0\n11938622040\n626\n4648396\n1212\n65487\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n38267\n38267\n10603.813145\n20\n0\n11938802286\n755\n4574022\n1212\n63950\n1\n25.666508\n23.496083\n1\n1\n59.47\n230.09\n2.055988\n0\n\n\n\n\n38268 rows × 18 columns",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#set-region-of-interestroi",
+    "href": "2-mouse_kidney.html#set-region-of-interestroi",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.3 Set region of interest(ROI)",
+    "text": "2.3 Set region of interest(ROI)\nThe left region is the kidney tissue, we can use the set_ROI method to set the ROI by xmin, xmax, ymin, ymax parameters.\n\ndataset.set_ROI(name='kidney', xmax=500)",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#peak_processing",
+    "href": "2-mouse_kidney.html#peak_processing",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.4 Process selected ROI",
+    "text": "2.4 Process selected ROI\nThen we run the processing pipline introduced in the basic use notebook.\n\nresults = dataset.process(sampling_ratio=0.1, frequency_threshold=0.02, tolerance=3, adaptive_window=True, roi='kidney', visualize=True)\n\nComputing mean spectrum...\nTraversing graph...\nFinding local maxima...\nSummarizing...",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#view-peak-list",
+    "href": "2-mouse_kidney.html#view-peak-list",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.5 View peak list",
+    "text": "2.5 View peak list\nWe can view the interactive peak list:\n\npeaklist = results[\"peak_list\"]\ntable, _ = timsimaging.plotting.feature_list(results[\"peak_list\"])\nshow(table)",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#view-intensity-distribution",
+    "href": "2-mouse_kidney.html#view-intensity-distribution",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.6 View intensity distribution",
+    "text": "2.6 View intensity distribution\nWe can also visualize the intensity distribution:\n\nresults[\"peak_list\"][\"total_intensity\"].hist()",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#view-interactive-results",
+    "href": "2-mouse_kidney.html#view-interactive-results",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.7 View Interactive Results",
+    "text": "2.7 View Interactive Results\nUser can explore the results in the GUI. By clicking pixels in the image(top left), users can view its mass spectrum(bottom middle), mobilogram(top right) and 2D spectogram combining these two(top middle). Also, users can click entries in the peak list(bottom left) to investigate ion images and spectral details of that peak. The menu(bottom right) provide summarizing functions like TIC image and mean spectrum, as well as file export options. This requires a living Python session to render, here shows a screenshot:\n\nshow(results['viz'])",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#isomer_separation",
+    "href": "2-mouse_kidney.html#isomer_separation",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.8 Separate ions by ion mobility",
+    "text": "2.8 Separate ions by ion mobility\nIsobaric ions, or ions with non-distinguishable m/z(for example, isomers) could be separated by ion mobility. As examples shown below, TIMSImaging detected both peaks.\n\nfrom bokeh.layouts import row\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1079, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1080, results=results)\nshow(row(isomer1, isomer2))\n\n\n  \n\n\n\n\n\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1163, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1164, results=results)\nshow(row(isomer1, isomer2))",
+    "crumbs": [
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
+    ]
+  },
+  {
+    "objectID": "2-mouse_kidney.html#imzML_export",
+    "href": "2-mouse_kidney.html#imzML_export",
+    "title": "2  Data processing in TIMSImaging",
+    "section": "2.9 Export the processed data in imzML format",
+    "text": "2.9 Export the processed data in imzML format\nFinally, we export the processed data as continuous, centroid imzML file for downstream analysis in Cardinal.\n\ntimsimaging.spectrum.export_imzML(dataset, path=r\"D:/dataset/Kidney_MS1_ITO6\", peaks=results)",
     "crumbs": [
       "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
     ]
@@ -100,11 +170,31 @@
     ]
   },
   {
-    "objectID": "4-timsconvert_comparison.html#introduction",
-    "href": "4-timsconvert_comparison.html#introduction",
+    "objectID": "4-timsconvert_comparison.html#convert-raw-data-using-timsconvert",
+    "href": "4-timsconvert_comparison.html#convert-raw-data-using-timsconvert",
     "title": "4  TIMSCONVERT workflow comparison",
-    "section": "",
-    "text": "4.1.1 Convert raw data using TIMSCONVERT\nFirst we use TIMSCONVERT to get unprocessed imzML. Note that unprocessed imzML with ion mobility is usually huge, we recommmend to do conversion using HPC.\n\n#!/bin/bash\n#SBATCH --nodes=1\n#SBATCH --time=4:00:00\n#SBATCH --job-name=Casestudy_timsconvert\n#SBATCH --mem=80G\n#SBATCH --partition=short\n#SBATCH -o output_%j.txt                    # Standard output file\n#SBATCH -e error_%j.txt                     # Standard error file\n#SBATCH --mail-user=zhu.yiny@northeastern.edu  # Email\n#SBATCH --mail-type=ALL                     # Type of email notifications\neval \"$(conda shell.bash hook)\"\nconda activate timsconvert\ncd /work/VitekLab/Data/MS/Melanie_manuscript/\ntimsconvert --input Kidney_MS1_ITO6.d --outdir mouse_kidney_timsconvert_output --compression none --mode centroid --verbose\nconda deactivate\n\n\n\n4.1.2 Process data from TIMSCONVERT\nLoad the imzML data from TIMSCONVERT, which is obtained by running the shell script.\n\nmsa &lt;- readMSIData(\"D:\\\\dataset\\\\Melanie_case_study\\\\Kidney_MS1_ITO6.imzML\")\nmsa\n\nMSImagingArrays with 38267 spectra \nspectraData(2): intensity, mz\npixelData(3): x, y, run\ncoord(2): x = 204...753, y = 99...442\nrunNames(1): Kidney_MS1_ITO6\nexperimentData(5): spectrumType, spectrumRepresentation, lineScanSequence, scanType, lineScanDirection\ncentroided: TRUE \ncontinuous: FALSE \n\n\nTIMSCONVERT keeped ion mobility in the imzML data, however the peak processing functions in Cardinal cannot take advantage of it. Here we bin the spectra to project data points with the same m/z but different ion mobilities together, then do processing without ion mobility in Cardinal.\n\nmse_binned &lt;- bin(msa, resolution=20, units=\"ppm\")\nmse&lt;-summarizePixels(mse_binned)\n\nTo reduce the computation, we only process the kidney tissue region in following steps.\n\nkidney &lt;- subsetPixels(mse, x&lt;500)\nimage(kidney, 'tic')\n\n\n\n\n\n\n\n\nPlot one spectrum, though a single spectrum is centroided on m/z dimension by the instrument, it looks more similar with a profile spectrum after projection.\n\nplot(kidney, i=1234)\n\n\n\n\n\n\n\n\nTreat the data as profile spectra and process it to reduce the number of features.\n\nkidney &lt;- subsetPixels(mse_binned, x&lt;500)\ncentroided(kidney)&lt;-FALSE\nset.seed(1, kind=\"L'Ecuyer-CMRG\")\n#kidney &lt;- normalize(kidney, method='rms')\npeaks &lt;- peakProcess(kidney, SNR=3, tolerance=200, units=\"ppm\")\n\n\n\n4.1.3 Comparing ion images with/without ion mobility\nThen we load the processed data from TIMSImaging, which is already peak-picked.\n\npeaks_timsimaging &lt;- readMSIData(\"D:\\\\dataset\\\\Melanie_case_study\\\\mouse_kidney.imzML\")\npeaks_timsimaging\n\nMSImagingExperiment with 3110 features and 22978 spectra \nspectraData(1): intensity\nfeatureData(1): mz\npixelData(3): x, y, run\ncoord(2): x = 204...409, y = 175...332\nrunNames(1): mouse_kidney\nexperimentData(5): spectrumType, spectrumRepresentation, lineScanSequence, scanType, lineScanDirection\nmass range:  800.2957 to 1760.7449 \ncentroided: TRUE \n\n\nNormalize on peak-picked data for fair comparison:\n\npeaks_norm = process(normalize(peaks, method='tic'))\npeaks_timsimaging &lt;- process(normalize(peaks_timsimaging, method='tic'))\n\nPlot ion images from processsing with/without ion mobility in the same color scale.\n\nm &lt;- 1198.7\nimage(peaks_timsimaging, i = findInterval(m, mz(peaks_timsimaging))+1, zlim=c(0, 5))\n\n\n\n\n\n\n\nimage(peaks_norm, mz = m, zlim=c(0, 5))\n\n\n\n\n\n\n\n\nThe ion images from TIMSCONVERT and processed in Cardinal looks noiser, as well as less contrast between the background and kidney edge.\n\nm &lt;- 1443.59\nimage(peaks_timsimaging, i = findInterval(m, mz(peaks_timsimaging))+1, zlim=c(0, 8))\n\n\n\n\n\n\n\nimage(peaks_norm, mz = m, zlim=c(0, 8))",
+    "section": "4.2 Convert raw data using TIMSCONVERT",
+    "text": "4.2 Convert raw data using TIMSCONVERT\nFirst we run the shell script below to convert the raw dataset into unprocessed imzML using TIMSCONVERT. Note that unprocessed imzML of TIMS-on dataset is usually huge, we recommmend to do the conversion on HPC.\n\n#!/bin/bash\n#SBATCH --nodes=1\n#SBATCH --time=4:00:00\n#SBATCH --job-name=Casestudy_timsconvert\n#SBATCH --mem=80G\n#SBATCH --partition=short\n#SBATCH -o output_%j.txt                    # Standard output file\n#SBATCH -e error_%j.txt                     # Standard error file\n#SBATCH --mail-user=zhu.yiny@northeastern.edu  # Email\n#SBATCH --mail-type=ALL                     # Type of email notifications\neval \"$(conda shell.bash hook)\"\nconda activate timsconvert\ncd /work/VitekLab/Data/MS/Melanie_manuscript/\ntimsconvert --input Kidney_MS1_ITO6.d --outdir mouse_kidney_timsconvert_output --compression none --mode centroid --verbose\nconda deactivate",
+    "crumbs": [
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>TIMSCONVERT workflow comparison</span>"
+    ]
+  },
+  {
+    "objectID": "4-timsconvert_comparison.html#process-data-from-timsconvert",
+    "href": "4-timsconvert_comparison.html#process-data-from-timsconvert",
+    "title": "4  TIMSCONVERT workflow comparison",
+    "section": "4.3 Process data from TIMSCONVERT",
+    "text": "4.3 Process data from TIMSCONVERT\nLoad the imzML data from TIMSCONVERT:\n\nmsa &lt;- readMSIData(\"D:\\\\dataset\\\\Melanie_case_study\\\\Kidney_MS1_ITO6.imzML\")\nmsa\n\nMSImagingArrays with 38267 spectra \nspectraData(2): intensity, mz\npixelData(3): x, y, run\ncoord(2): x = 204...753, y = 99...442\nrunNames(1): Kidney_MS1_ITO6\nexperimentData(5): spectrumType, spectrumRepresentation, lineScanSequence, scanType, lineScanDirection\ncentroided: TRUE \ncontinuous: FALSE \n\n\nTIMSCONVERT keeped the ion mobility array in the imzML data, however the peak processing functions in Cardinal cannot take advantage of it. When loaded into MSImageExperiment, the ion mobility array is discarded, and data points with the same m/z but different ion mobilities can no longer be distinguished, but they are still separate entries. Here we bin the spectra to project isobaric data points together, then do processing without ion mobility in Cardinal.\n\nmse_binned &lt;- bin(msa, resolution=20, units=\"ppm\")\nmse&lt;-summarizePixels(mse_binned)\n\nTo reduce the computation, we only process the kidney tissue region in following steps.\n\nkidney &lt;- subsetPixels(mse, x&lt;500)\nimage(kidney, 'tic')\n\n\n\n\n\n\n\n\nPlot one spectrum, though a single spectrum is centroided on m/z dimension by the instrument, it looks more similar with a profile spectrum after projection.\n\nplot(kidney, i=1234)\n\n\n\n\n\n\n\n\nTreat the data as profile spectra and process it to reduce the number of features.\n\nkidney &lt;- subsetPixels(mse_binned, x&lt;500)\ncentroided(kidney)&lt;-FALSE\nset.seed(1, kind=\"L'Ecuyer-CMRG\")\n#kidney &lt;- normalize(kidney, method='rms')\npeaks &lt;- peakProcess(kidney, SNR=3, tolerance=200, units=\"ppm\")",
+    "crumbs": [
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>TIMSCONVERT workflow comparison</span>"
+    ]
+  },
+  {
+    "objectID": "4-timsconvert_comparison.html#comparing-ion-images-withwithout-ion-mobility",
+    "href": "4-timsconvert_comparison.html#comparing-ion-images-withwithout-ion-mobility",
+    "title": "4  TIMSCONVERT workflow comparison",
+    "section": "4.4 Comparing ion images with/without ion mobility",
+    "text": "4.4 Comparing ion images with/without ion mobility\nThen we load the processed data from TIMSImaging, which is already peak-picked.\n\npeaks_timsimaging &lt;- readMSIData(\"D:\\\\dataset\\\\Melanie_case_study\\\\mouse_kidney.imzML\")\npeaks_timsimaging\n\nMSImagingExperiment with 3110 features and 22978 spectra \nspectraData(1): intensity\nfeatureData(1): mz\npixelData(3): x, y, run\ncoord(2): x = 204...409, y = 175...332\nrunNames(1): mouse_kidney\nexperimentData(5): spectrumType, spectrumRepresentation, lineScanSequence, scanType, lineScanDirection\nmass range:  800.2957 to 1760.7449 \ncentroided: TRUE \n\n\nNormalize on peak-picked data for fair comparison:\n\npeaks_norm = process(normalize(peaks, method='tic'))\npeaks_timsimaging &lt;- process(normalize(peaks_timsimaging, method='tic'))\n\nPlot ion images from processsing with/without ion mobility in the same color scale.\n\nm &lt;- 1198.7\nimage(peaks_timsimaging, i = findInterval(m, mz(peaks_timsimaging))+1, zlim=c(0, 5))\n\n\n\n\n\n\n\nimage(peaks_norm, mz = m, zlim=c(0, 5))\n\n\n\n\n\n\n\n\nThe ion images from TIMSCONVERT and processed in Cardinal looks noiser, as well as less contrast between the background and kidney edge.\n\nm &lt;- 1443.59\nimage(peaks_timsimaging, i = findInterval(m, mz(peaks_timsimaging))+1, zlim=c(0, 8))\n\n\n\n\n\n\n\nimage(peaks_norm, mz = m, zlim=c(0, 8))",
     "crumbs": [
       "<span class='chapter-number'>4</span>  <span class='chapter-title'>TIMSCONVERT workflow comparison</span>"
     ]

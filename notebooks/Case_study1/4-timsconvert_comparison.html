@@ -178,12 +178,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">Table of contents</h2>
    
   <ul>
-  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction"><span class="header-section-number">4.1</span> Introduction</a>
-  <ul class="collapse">
-  <li><a href="#convert-raw-data-using-timsconvert" id="toc-convert-raw-data-using-timsconvert" class="nav-link" data-scroll-target="#convert-raw-data-using-timsconvert"><span class="header-section-number">4.1.1</span> Convert raw data using TIMSCONVERT</a></li>
-  <li><a href="#process-data-from-timsconvert" id="toc-process-data-from-timsconvert" class="nav-link" data-scroll-target="#process-data-from-timsconvert"><span class="header-section-number">4.1.2</span> Process data from TIMSCONVERT</a></li>
-  <li><a href="#comparing-ion-images-withwithout-ion-mobility" id="toc-comparing-ion-images-withwithout-ion-mobility" class="nav-link" data-scroll-target="#comparing-ion-images-withwithout-ion-mobility"><span class="header-section-number">4.1.3</span> Comparing ion images with/without ion mobility</a></li>
-  </ul></li>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction"><span class="header-section-number">4.1</span> Introduction</a></li>
+  <li><a href="#convert-raw-data-using-timsconvert" id="toc-convert-raw-data-using-timsconvert" class="nav-link" data-scroll-target="#convert-raw-data-using-timsconvert"><span class="header-section-number">4.2</span> Convert raw data using TIMSCONVERT</a></li>
+  <li><a href="#process-data-from-timsconvert" id="toc-process-data-from-timsconvert" class="nav-link" data-scroll-target="#process-data-from-timsconvert"><span class="header-section-number">4.3</span> Process data from TIMSCONVERT</a></li>
+  <li><a href="#comparing-ion-images-withwithout-ion-mobility" id="toc-comparing-ion-images-withwithout-ion-mobility" class="nav-link" data-scroll-target="#comparing-ion-images-withwithout-ion-mobility"><span class="header-section-number">4.4</span> Comparing ion images with/without ion mobility</a></li>
   </ul>
 </nav>
     </div>
@@ -212,9 +210,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="introduction" class="level2" data-number="4.1">
 <h2 data-number="4.1" class="anchored" data-anchor-id="introduction"><span class="header-section-number">4.1</span> Introduction</h2>
 <p>In this part, we compare TIMSImaging workflow with existing method that ignores ion mobility on the same mosue kidney peptide dataset. TIMSCONVERT is an open-source tool to convert general Bruker raw data into open formats, users could install from https://github.com/gtluu/timsconvert. Specifically, it outputs imzML for MALDI-TIMS-MS imaging data, either with ion mobility or not. However, it does <strong>NOT</strong> do any pre-processing. <img src="workflow_compare.png" class="img-fluid"></p>
-<section id="convert-raw-data-using-timsconvert" class="level3" data-number="4.1.1">
-<h3 data-number="4.1.1" class="anchored" data-anchor-id="convert-raw-data-using-timsconvert"><span class="header-section-number">4.1.1</span> Convert raw data using TIMSCONVERT</h3>
-<p>First we use TIMSCONVERT to get <strong>unprocessed</strong> imzML. Note that unprocessed imzML with ion mobility is usually huge, we recommmend to do conversion using HPC.</p>
+</section>
+<section id="convert-raw-data-using-timsconvert" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="convert-raw-data-using-timsconvert"><span class="header-section-number">4.2</span> Convert raw data using TIMSCONVERT</h2>
+<p>First we run the shell script below to convert the raw dataset into <strong>unprocessed</strong> imzML using TIMSCONVERT. Note that unprocessed imzML of TIMS-on dataset is usually huge, we recommmend to do the conversion on HPC.</p>
 <div class="cell">
 <pre class="shell cell-code"><code>#!/bin/bash
 #SBATCH --nodes=1
@@ -233,9 +232,9 @@ timsconvert --input Kidney_MS1_ITO6.d --outdir mouse_kidney_timsconvert_output -
 conda deactivate</code></pre>
 </div>
 </section>
-<section id="process-data-from-timsconvert" class="level3" data-number="4.1.2">
-<h3 data-number="4.1.2" class="anchored" data-anchor-id="process-data-from-timsconvert"><span class="header-section-number">4.1.2</span> Process data from TIMSCONVERT</h3>
-<p>Load the imzML data from TIMSCONVERT, which is obtained by running the shell script.</p>
+<section id="process-data-from-timsconvert" class="level2" data-number="4.3">
+<h2 data-number="4.3" class="anchored" data-anchor-id="process-data-from-timsconvert"><span class="header-section-number">4.3</span> Process data from TIMSCONVERT</h2>
+<p>Load the imzML data from TIMSCONVERT:</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>msa <span class="ot">&lt;-</span> <span class="fu">readMSIData</span>(<span class="st">"D:</span><span class="sc">\\</span><span class="st">dataset</span><span class="sc">\\</span><span class="st">Melanie_case_study</span><span class="sc">\\</span><span class="st">Kidney_MS1_ITO6.imzML"</span>)</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>msa</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -250,7 +249,7 @@ centroided: TRUE
 continuous: FALSE </code></pre>
 </div>
 </div>
-<p>TIMSCONVERT keeped ion mobility in the imzML data, however the peak processing functions in Cardinal cannot take advantage of it. Here we bin the spectra to project data points with the same m/z but different ion mobilities together, then do processing <strong>without</strong> ion mobility in Cardinal.</p>
+<p>TIMSCONVERT keeped the ion mobility array in the imzML data, however the peak processing functions in Cardinal cannot take advantage of it. When loaded into <code>MSImageExperiment</code>, the ion mobility array is discarded, and data points with the same m/z but different ion mobilities can no longer be distinguished, but they are still separate entries. Here we bin the spectra to project isobaric data points together, then do processing <strong>without</strong> ion mobility in Cardinal.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>mse_binned <span class="ot">&lt;-</span> <span class="fu">bin</span>(msa, <span class="at">resolution=</span><span class="dv">20</span>, <span class="at">units=</span><span class="st">"ppm"</span>)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>mse<span class="ot">&lt;-</span><span class="fu">summarizePixels</span>(mse_binned)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -287,8 +286,8 @@ continuous: FALSE </code></pre>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>peaks <span class="ot">&lt;-</span> <span class="fu">peakProcess</span>(kidney, <span class="at">SNR=</span><span class="dv">3</span>, <span class="at">tolerance=</span><span class="dv">200</span>, <span class="at">units=</span><span class="st">"ppm"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </section>
-<section id="comparing-ion-images-withwithout-ion-mobility" class="level3" data-number="4.1.3">
-<h3 data-number="4.1.3" class="anchored" data-anchor-id="comparing-ion-images-withwithout-ion-mobility"><span class="header-section-number">4.1.3</span> Comparing ion images with/without ion mobility</h3>
+<section id="comparing-ion-images-withwithout-ion-mobility" class="level2" data-number="4.4">
+<h2 data-number="4.4" class="anchored" data-anchor-id="comparing-ion-images-withwithout-ion-mobility"><span class="header-section-number">4.4</span> Comparing ion images with/without ion mobility</h2>
 <p>Then we load the processed data from TIMSImaging, which is already peak-picked.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>peaks_timsimaging <span class="ot">&lt;-</span> <span class="fu">readMSIData</span>(<span class="st">"D:</span><span class="sc">\\</span><span class="st">dataset</span><span class="sc">\\</span><span class="st">Melanie_case_study</span><span class="sc">\\</span><span class="st">mouse_kidney.imzML"</span>)</span>
@@ -352,7 +351,6 @@ centroided: TRUE </code></pre>
 </div>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
