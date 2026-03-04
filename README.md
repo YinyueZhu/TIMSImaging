@@ -61,10 +61,10 @@ The full documentation can be found [here](https://yinyuezhu.github.io/TIMSImagi
 
 We illustrate the usage of TIMSImaging with 3 case studies: 
 * [Segmentation of peptide images of
-mouse kidney tissue](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study1)
+mouse kidney tissue](https://yinyuezhu.github.io/TIMSImaging/notebooks/Case_study1)
 * [Differential analysis of natural
-products images of microbial cultures](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study2)
-* [Lipids annotation of mouse skin tissue](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study3)
+products images of microbial cultures](https://yinyuezhu.github.io/TIMSImaging/notebooks/Case_study2)
+* [Lipids annotation of mouse skin tissue](https://yinyuezhu.github.io/TIMSImaging/notebooks/Case_study3)
 
 
 <!--
