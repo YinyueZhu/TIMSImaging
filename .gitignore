@@ -86,7 +86,7 @@ Thumbs.db
 # =========================
 data/
 Case_study*/
-Vignette*/
+# Vignette*/
 outputs/
 results/
 *.h5
