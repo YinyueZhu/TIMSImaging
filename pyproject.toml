@@ -9,10 +9,10 @@ version = "0.0.1-dev"
 description = "MALDI-TIMS-TOF raw data  visualization and preprocessing"
 readme = "README.md"
 authors = [
-    { name = "Yinyue Zhu", email = "zhuyyx86@gmail.com" }
+    { name = "Yinyue Zhu", email = "zhu.yiny@northeastern.edu" }
 ]
 maintainers = [
-    { name = "Yinyue Zhu", email = "zhuyyx86@gmail.com" }
+    { name = "Yinyue Zhu", email = "zhu.yiny@northeastern.edu }
 ]
 
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#classifiers

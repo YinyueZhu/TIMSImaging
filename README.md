@@ -1,6 +1,6 @@
 <!--
 <p align="center">
-  <img src="https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/raw/main/docs/source/logo.png" height="150">
+  <img src="https://github.com/YinyueZhu/TIMSImaging/raw/main/docs/source/logo.png" height="150">
 </p>
 -->
 
@@ -8,14 +8,14 @@
   TIMSImaging
 </h1>
 
-<p align="center">
-    <a href="https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/actions/workflows/tests.yml">
-        <img alt="Tests" src="https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/actions/workflows/tests.yml/badge.svg" /></a>
+<!-- <p align="center">
+    <a href="https://github.com/YinyueZhu/TIMSImaging/actions/workflows/tests.yml">
+        <img alt="Tests" src="https://github.com/YinyueZhu/TIMSImaging/actions/workflows/tests.yml/badge.svg" /></a>
     <a href="https://pypi.org/project/timsimaging">
         <img alt="PyPI" src="https://img.shields.io/pypi/v/timsimaging" /></a>
     <a href="https://pypi.org/project/timsimaging">
         <img alt="PyPI - Python Version" src="https://img.shields.io/pypi/pyversions/timsimaging" /></a>
-    <a href="https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/blob/main/LICENSE">
+    <a href="https://github.com/YinyueZhu/TIMSImaging/blob/main/LICENSE">
         <img alt="PyPI - License" src="https://img.shields.io/pypi/l/timsimaging" /></a>
     <a href='https://timsimaging.readthedocs.io/en/latest/?badge=latest'>
         <img src='https://readthedocs.org/projects/timsimaging/badge/?version=latest' alt='Documentation Status' /></a>
@@ -25,46 +25,47 @@
         <img alt="Cookiecutter template from @cthoyt" src="https://img.shields.io/badge/Cookiecutter-snekpack-blue" /></a>
     <a href='https://github.com/psf/black'>
         <img src='https://img.shields.io/badge/code%20style-black-000000.svg' alt='Code style: black' /></a>
-    <a href="https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/blob/main/.github/CODE_OF_CONDUCT.md">
+    <a href="https://github.com/YinyueZhu/TIMSImaging/blob/main/.github/CODE_OF_CONDUCT.md">
         <img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Contributor Covenant"/></a>
-</p>
+</p> -->
 
-MALDI-TIMS-TOF raw data  visualization and preprocessing
-
-## 💪 Getting Started
-
-> TODO show in a very small amount of space the **MOST** useful thing your package can do.
-> Make it as short as possible! You have an entire set of docs for later.
+TIMSImaging is an open-source Python package for processing and visualization of MALDI-TIMS-MS imaging data from Bruker timsTOF instruments. It provides functionalities including ion mobility-aware feature extraction, interactive visualization, CCS calcluation and exporting imzML with the ion mobility dimension.
 
 
-## 🚀 Installation
-
-<!-- Uncomment this section after your first ``tox -e finish``
-The most recent release can be installed from
-[PyPI](https://pypi.org/project/timsimaging/) with:
-
-```shell
-pip install timsimaging
-```
--->
-
+## Installation
 The most recent code and data can be installed directly from GitHub with:
 
 ```shell
-pip install git+https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging.git
+conda create -n timsimaging python=3.11
+conda activate timsimaging
+pip install git+https://github.com/YinyueZhu/TIMSImaging.git
+```
+The dependencies will be automatedly installed. TIMSImaging relies on [AlphaTIMS](https://github.com/MannLabs/alphatims) to access raw spectra, and a forked version of [pyimzML](https://github.com/gtluu/pyimzML) to write ion mobility arrays into imzML. AlphaTIMS includes Bruker TDFSDK dynamic library, which is only available on Windows and Linux.
+  
+## Usage
+```python
+import timsimaging
+from bokeh.io import show, output_notebook
+output_notebook()
+# load data
+dataset = timsimaging.spectrum.MSIDataset("example_dataset.d")
+# spectral processing
+results = dataset.process(sampling_ratio=1, visualize=True, ccs_calibration=True)
+# visualize results
+show(results["viz"])
+# export imzML
+timsimaging.spectrum.export_imzML(dataset, "example_results", peaks=results)
 ```
 
-## 👐 Contributing
+The full documentation can be found [here](https://yinyuezhu.github.io/TIMSImaging/docs/build/html/).
 
-Contributions, whether filing an issue, making a pull request, or forking, are appreciated. See
-[CONTRIBUTING.md](https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/blob/master/.github/CONTRIBUTING.md)
-for more information on getting involved.
+We illustrate the usage of TIMSImaging with 3 case studies: 
+* [Segmentation of peptide images of
+mouse kidney tissue](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study1)
+* [Differential analysis of natural
+products images of microbial cultures](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study2)
+* [Lipids annotation of mouse skin tissue](https://yinyuezhu.github.io/TIMSImaging/nootbooks/Case_study3)
 
-## 👋 Attribution
-
-### ⚖️ License
-
-The code in this package is licensed under the MIT License.
 
 <!--
 ### 📖 Citation
@@ -138,14 +139,14 @@ tox
 ```
 
 Additionally, these tests are automatically re-run with each commit in a
-[GitHub Action](https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/actions?query=workflow%3ATests).
+[GitHub Action](https://github.com/YinyueZhu/TIMSImaging/actions?query=workflow%3ATests).
 
 ### 📖 Building the Documentation
 
 The documentation can be built locally using the following:
 
 ```shell
-git clone git+https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging.git
+git clone git+https://github.com/YinyueZhu/TIMSImaging.git
 cd https://github.com/YinyueZhu/TIMSImaging
 tox -e docs
 open docs/build/html/index.html
@@ -254,7 +255,7 @@ This script does the following:
 #### Releasing on GitHub
 
 1. Navigate
-   to https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging/releases/new
+   to https://github.com/YinyueZhu/TIMSImaging/releases/new
    to draft a new release
 2. Click the "Choose a Tag" dropdown and select the tag corresponding to the release you just made
 3. Click the "Generate Release Notes" button to get a quick outline of recent changes. Modify the title and description
