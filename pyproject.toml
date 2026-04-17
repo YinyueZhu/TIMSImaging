@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "timsimaging"
-version = "0.0.1-dev"
+version = "0.1.0"
 description = "MALDI-TIMS-TOF raw data  visualization and preprocessing"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ maintainers = [
 # See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#classifiers
 # Search tags using the controlled vocabulary at https://pypi.org/classifiers
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
@@ -47,16 +47,14 @@ license = { file = "LICENSE" }
 
 requires-python = ">=3.9"
 dependencies = [
-    "more_itertools", # missing from itertools in stdlib
-    "tqdm", # progress bars
-    "alphatims==1.0.8",
-    "bokeh==3.4.0",
-    "numpy==1.26.4",
-    "pandas==2.2.1",
-    "scipy==1.11.4",
-    "scikit-learn==1.4.2",
+    "alphatims==1.0.9",
+    "pandas==2.3.0",
+    "scikit-learn",
+    "bokeh",
+    "panel",
+    "datashader",
     "pyimzml @ git+https://github.com/gtluu/pyimzML.git@fe24388984aa96a18ef2ed54927ec05d6701cc04",
-    "pyteomics==4.7.3",
+    "pyteomics",
 ]
 
 [project.optional-dependencies]
