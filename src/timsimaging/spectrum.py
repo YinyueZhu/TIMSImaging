@@ -18,7 +18,9 @@ from pyimzml.compression import NoCompression, ZlibCompression
 
 from bokeh.plotting import show
 from .utils import CoordsGraph, local_maxima
-from .plotting import spectrum, mobilogram, heatmap, image, _visualize
+
+# from .plotting import spectrum, mobilogram, heatmap, image, _visualize
+from .plotting_ds import spectrum, mobilogram, heatmap, image, MSIDashboard
 
 __all__ = ["MSIDataset", "Frame", "export_imzML"]
 
@@ -79,7 +81,7 @@ class MSIDataset:
         """
         from .calibration import CCS_calibration, CCS_Bruker_Calibration
 
-        if method=="linear":
+        if method == "linear":
             polarity = self.cali_info["KeyPolarity"].iloc[0]
             # calibrants in chemical formula
             calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
@@ -91,7 +93,7 @@ class MSIDataset:
             )
             # model x->y
             calibrator = CCS_calibration(calibrants, raw_mob, polarity)
-        elif method=="internal":
+        elif method == "internal":
             calibrator = CCS_Bruker_Calibration()
         else:
             raise NotImplementedError("Method not implemented!")
@@ -215,7 +217,7 @@ class MSIDataset:
             assert roi in self.rois
             frame_indices = self.rois[roi]
         else:
-            frame_indices = np.arange(1, self.data.frame_max_index)        
+            frame_indices = np.arange(1, self.data.frame_max_index)
         # if isinstance(intensity_threshold, float):
         # np.max(peak_list["total_intensity"]) * intensity_threshold
         # use dataframe for missing values
@@ -245,7 +247,7 @@ class MSIDataset:
         intensity_threshold=None,
         roi=None,  # what if there are multiple ROIs?
         visualize=False,
-        ccs_calibration=False,
+        ccs_calibration=True,
         **kwargs,
     ) -> Dict:
         """Process the dataset to peak picked and aligned data cube
@@ -287,8 +289,16 @@ class MSIDataset:
             "intensity_array": intensity_array,
         }  # 3 dataframes
         if visualize is True:
-            app = _visualize(self, mean_spec, peak_list, peak_extents)
-            results["viz"] = app
+            # app = _visualize(self, mean_spec, peak_list, peak_extents)
+            # results["viz"] = app
+            dashboard = MSIDashboard(
+                dataset=self,
+                mean_spectrum=mean_spec,
+                peak_list=peak_list,
+                peak_extents=peak_extents,
+                intensity_array=intensity_array,
+            )
+            results["viz"] = dashboard
 
         if ccs_calibration is True:
             calibrator = self.ccs_calibrator()
