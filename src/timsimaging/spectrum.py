@@ -11,9 +11,7 @@ from tqdm import tqdm
 # from ripser import ripser
 from scipy.sparse import coo_matrix
 from scipy.ndimage import maximum_filter, minimum_filter1d
-from typing import List, Iterable, Literal, Dict
-from pyimzml.ImzMLWriter import ImzMLWriter
-from pyimzml.compression import NoCompression, ZlibCompression
+from typing import List, Tuple, Iterable, Literal, Dict
 
 
 from bokeh.plotting import show
@@ -22,7 +20,7 @@ from .utils import CoordsGraph, local_maxima
 # from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 from .plotting_ds import spectrum, mobilogram, heatmap, image, MSIDashboard
 
-__all__ = ["MSIDataset", "Frame", "export_imzML"]
+__all__ = ["MSIDataset", "Frame"]
 
 
 class MSIDataset:
@@ -288,6 +286,17 @@ class MSIDataset:
             "peak_list": peak_list,
             "intensity_array": intensity_array,
         }  # 3 dataframes
+
+        if ccs_calibration is True:
+            calibrator = self.ccs_calibrator()
+            # assume charge is 1, true for most ions in MALDI
+            # add isotope envelope decection for more accurate computation
+            ccs_values = calibrator.transform(
+                peak_list["mz_values"], peak_list["mobility_values"], charge=1
+            )
+            results["peak_list"]["ccs_values"] = ccs_values
+            results["ccs_calibrator"] = calibrator
+
         if visualize is True:
             # app = _visualize(self, mean_spec, peak_list, peak_extents)
             # results["viz"] = app
@@ -299,16 +308,6 @@ class MSIDataset:
                 intensity_array=intensity_array,
             )
             results["viz"] = dashboard
-
-        if ccs_calibration is True:
-            calibrator = self.ccs_calibrator()
-            # assume charge is 1, true for most ions in MALDI
-            # add isotope envelope decection for more accurate computation
-            ccs_values = calibrator.transform(
-                peak_list["mz_values"], peak_list["mobility_values"], charge=1
-            )
-            results["peak_list"]["ccs_values"] = ccs_values
-            results["ccs_calibrator"] = calibrator
 
         return results
 
@@ -460,7 +459,8 @@ class Frame:
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
-        count_thrshold=5,  # at least 5 points for a 3D peak
+        count_thrshold: int =25,  # at least 25 points for a 3D peak
+        #smoothing: Iterable[int | float] | int | float | None = 2,
         window_size: Iterable[int] = [17, 7],
         adaptive_window=False,
         subdivide=True,
@@ -479,7 +479,7 @@ class Frame:
         :type tolerance: Iterable[int  |  float] | int | float | None, optional
         :param metric: distance metric, defaults to "euclidean"
         :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        :param count_thrshold: minimum count of data points for a peak, defaults to 5
+        :param count_thrshold: minimum count of data points for a peak, defaults to 25
         :type count_thrshold: int, optional
         :param window_size: [mobility, mz] window size of the maximum filter for step 2, defaults to [17, 7]
         :type window_size: Iterable[int], optional
@@ -552,7 +552,7 @@ class Frame:
                 # separate peaks by mz values
                 else:
                     proj = np.sum(dense_mx, axis=0)
-                    minima = minimum_filter1d(proj, size=window_size[1] // 2)
+                    minima = minimum_filter1d(proj, size=window_size[1] // 3)
                     split = proj[proj == minima].index.to_numpy()
                     for s in range(len(split) - 1):
                         subgroup = g.loc[
@@ -622,83 +622,3 @@ class Frame:
 
     def lower_star_filter(self):
         pass
-
-
-def export_imzML(
-    dataset: MSIDataset,
-    path: str,
-    peaks: Dict = None,
-    mode: Literal["centroid", "profile"] = "centroid",
-    imzml_mode: Literal["continuous", "processed"] = "continuous",
-):
-    """Export processed data as imzML format with ion mobility
-
-    :param dataset: the original dataset, contains necessary metadata
-    :type dataset: MSIDataset
-    :param path: path of the output
-    :type path: str
-    :param peaks: processing results from MSIDataset.process(), defaults to None
-    :type peaks: Dict, optional
-    :param mode: , defaults to "centroid"
-    :type mode: Literal[&quot;centroid&quot;, &quot;profile&quot;], optional
-    :param imzml_mode: mode of arrays in the imzML file, defaults to "continuous"
-    :type imzml_mode: Literal[&quot;continuous&quot;, &quot;processed&quot;], optional
-    """
-    key_polarity = dataset.cali_info["KeyPolarity"].iloc[0]
-    if key_polarity == "+":
-        polarity = "positive"
-    elif key_polarity == "-":
-        polarity = "negative"
-    compression_object = NoCompression()
-    # create imzML and ibd files
-    writer = ImzMLWriter(
-        path,
-        polarity=polarity,
-        mode=imzml_mode,
-        spec_type=mode,
-        mz_dtype=np.float64,
-        intensity_dtype=np.float64,
-        mobility_dtype=np.float64,
-        mz_compression=compression_object,
-        intensity_compression=compression_object,
-        mobility_compression=compression_object,
-        include_mobility=True,
-    )
-    if peaks is None:
-        mean_spec = dataset.mean_spectra(frequency_threshold=0.05)
-        peak_list, peak_extents = mean_spec.peakPick(
-            return_extents=True,
-        ).values()
-        # get peak picked frames
-
-        intensity_arrays = pd.DataFrame(index=np.arange(1, dataset.data.frame_max_index))
-        # can I use pure Numpy here?
-        for i in range(peak_extents.shape[0]):
-            mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
-            # all data for i-th peak
-            image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-            intensity_arrays[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
-        intensity_array = intensity_arrays.copy().fillna(0)
-
-    else:
-        peak_list = peaks["peak_list"]
-        intensity_array = peaks["intensity_array"]
-    # pos = dataset.pos.set_index("Frame")
-
-    # indices_sorted = peak_list.sort_values("mz_values").index
-    indices_sorted = np.argsort(peak_list["mz_values"])
-
-    mz_array = peak_list["mz_values"].to_numpy()[indices_sorted]
-    mobility_array = peak_list["mobility_values"].to_numpy()[indices_sorted]
-    intensity_array = intensity_array.iloc[:, indices_sorted]
-    # write files
-    for frame in tqdm(intensity_array.index):
-        # or I can do adhoc extraction here?
-
-        writer.addSpectrum(
-            mzs=mz_array,
-            intensities=intensity_array.loc[frame].to_numpy(),
-            mobilities=mobility_array,
-            coords=dataset.pos.loc[frame],
-        )
-    writer.close()
