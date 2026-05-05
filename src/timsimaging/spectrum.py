@@ -18,7 +18,7 @@ from bokeh.plotting import show
 from .utils import CoordsGraph, local_maxima
 
 # from .plotting import spectrum, mobilogram, heatmap, image, _visualize
-from .plotting_ds import spectrum, mobilogram, heatmap, image, MSIDashboard
+from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
 
 __all__ = ["MSIDataset", "Frame"]
 
@@ -459,7 +459,7 @@ class Frame:
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
-        count_thrshold: int =25,  # at least 25 points for a 3D peak
+        count_threshold: int =25,  # at least 25 points for a 3D peak
         #smoothing: Iterable[int | float] | int | float | None = 2,
         window_size: Iterable[int] = [17, 7],
         adaptive_window=False,
@@ -479,8 +479,8 @@ class Frame:
         :type tolerance: Iterable[int  |  float] | int | float | None, optional
         :param metric: distance metric, defaults to "euclidean"
         :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        :param count_thrshold: minimum count of data points for a peak, defaults to 25
-        :type count_thrshold: int, optional
+        :param count_threshold: minimum count of data points for a peak, defaults to 25
+        :type count_threshold: int, optional
         :param window_size: [mobility, mz] window size of the maximum filter for step 2, defaults to [17, 7]
         :type window_size: Iterable[int], optional
         :param adaptive_window: if True, the function would determine the maximum filter size automatically and override `window_size`, defaults to False
@@ -507,7 +507,7 @@ class Frame:
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
 
         print("Traversing graph...")
-        group_labels = graph.group_nodes(count_thrshold=count_thrshold)  # ndarray of (k,)
+        group_labels = graph.group_nodes(count_threshold=count_threshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
