@@ -278,7 +278,8 @@ class MSIDataset:
             peak_list = peak_list.loc[indices]
             peak_extents = peak_extents.loc[indices]
         intensity_array = self.integrate_intensity(peak_list, peak_extents, roi)
-
+        peak_list.index = np.arange(1, peak_list.shape[0] + 1)
+        peak_extents.index = peak_list.index
         # intensity_array.fillna(0.0, inplace=True)
 
         results = {
@@ -459,8 +460,8 @@ class Frame:
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
-        count_threshold: int =25,  # at least 25 points for a 3D peak
-        #smoothing: Iterable[int | float] | int | float | None = 2,
+        count_threshold: int = 5,  # at least 5 points for a 3D peak
+        # smoothing: Iterable[int | float] | int | float | None = 2,
         window_size: Iterable[int] = [17, 7],
         adaptive_window=False,
         subdivide=True,
@@ -552,7 +553,7 @@ class Frame:
                 # separate peaks by mz values
                 else:
                     proj = np.sum(dense_mx, axis=0)
-                    minima = minimum_filter1d(proj, size=window_size[1] // 3)
+                    minima = minimum_filter1d(proj, size=window_size[1] // 2)
                     split = proj[proj == minima].index.to_numpy()
                     for s in range(len(split) - 1):
                         subgroup = g.loc[

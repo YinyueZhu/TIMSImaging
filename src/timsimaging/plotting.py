@@ -406,22 +406,22 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
 # Old Bokeh-only implementation of feature_list (kept for reference).
 # Replaced by the Panel Tabulator version below, which provides server-side
 # filtering without a CustomJS round-trip.
-# def feature_list(data):
-#     source = ColumnDataSource(data)
-#     columns = [
-#         TableColumn(field="mz_values",      title="m/z",              formatter=NumberFormatter(format="0.000")),
-#         TableColumn(field="mobility_values", title="1/K0",             formatter=NumberFormatter(format="0.000")),
-#         TableColumn(field="total_intensity", title="total peak intensity", formatter=NumberFormatter(format="0.000")),
-#     ]
-#     filtered_source = ColumnDataSource(data.copy())
-#     table = DataTable(source=filtered_source, columns=columns, index_position=0)
-#     intensity_threshold = NumericInput(title="Relative intensity threshold", placeholder="0-100% to the max intensity", low=0, high=100, value=0, mode="float")
-#     intensity_filter_callback = CustomJS(args=dict(source=source, filtered_source=filtered_source), code="""...""")
-#     intensity_threshold.js_on_change("value", intensity_filter_callback)
-#     return column([intensity_threshold, table], aspect_ratio=1), filtered_source
+def feature_list(data):
+    source = ColumnDataSource(data)
+    columns = [
+        TableColumn(field="mz_values",      title="m/z",              formatter=NumberFormatter(format="0.000")),
+        TableColumn(field="mobility_values", title="1/K0",             formatter=NumberFormatter(format="0.000")),
+        TableColumn(field="total_intensity", title="total peak intensity", formatter=NumberFormatter(format="0.000")),
+    ]
+    filtered_source = ColumnDataSource(data.copy())
+    table = DataTable(source=filtered_source, columns=columns, index_position=0)
+    intensity_threshold = NumericInput(title="Relative intensity threshold", placeholder="0-100% to the max intensity", low=0, high=100, value=0, mode="float")
+    intensity_filter_callback = CustomJS(args=dict(source=source, filtered_source=filtered_source), code="""...""")
+    intensity_threshold.js_on_change("value", intensity_filter_callback)
+    return column([intensity_threshold, table], aspect_ratio=1), filtered_source
 
 
-def feature_list(data: pd.DataFrame) -> Tuple[pn.Column, pn.widgets.Tabulator]:
+def feature_list_tabulator(data: pd.DataFrame) -> Tuple[pn.Column, pn.widgets.Tabulator]:
     """Build a Panel-based interactive peak-list table with an intensity threshold filter.
 
     The table is backed by a :class:`panel.widgets.Tabulator` widget, which
@@ -808,7 +808,7 @@ class MSIDashboard(param.Parameterized):
             y_start=df["mobility_values"].min(),
             y_end=df["mobility_values"].max(),
         )
-        self.peak_table_widget, self.peak_table_source = feature_list(self.peak_list)
+        self.peak_table_widget, self.peak_table_source = feature_list_tabulator(self.peak_list)
 
     def _init_peak_boxes(self):
         # Compute rect geometry (centre + size) from peak extents and add a
