@@ -45,7 +45,7 @@ class CoordsGraph:
     def __len__(self):
         return self.coords.shape[0]
 
-    def group_nodes(self, breath_first=False, count_thrshold=5) -> np.ndarray:
+    def group_nodes(self, breath_first=False, count_threshold=5) -> np.ndarray:
 
         if breath_first is True:
             search_func = bfs
@@ -55,7 +55,7 @@ class CoordsGraph:
             n_nodes=len(self),
             indices=self.adjacency_mx.indices,
             indptr=self.adjacency_mx.indptr,
-            count_threshold=count_thrshold,
+            count_threshold=count_threshold,
         )
 
         return group_labels

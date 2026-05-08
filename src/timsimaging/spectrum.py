@@ -11,16 +11,16 @@ from tqdm import tqdm
 # from ripser import ripser
 from scipy.sparse import coo_matrix
 from scipy.ndimage import maximum_filter, minimum_filter1d
-from typing import List, Iterable, Literal, Dict
-from pyimzml.ImzMLWriter import ImzMLWriter
-from pyimzml.compression import NoCompression, ZlibCompression
+from typing import List, Tuple, Iterable, Literal, Dict
 
 
 from bokeh.plotting import show
 from .utils import CoordsGraph, local_maxima
-from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 
-__all__ = ["MSIDataset", "Frame", "export_imzML"]
+# from .plotting import spectrum, mobilogram, heatmap, image, _visualize
+from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
+
+__all__ = ["MSIDataset", "Frame"]
 
 
 class MSIDataset:
@@ -79,7 +79,7 @@ class MSIDataset:
         """
         from .calibration import CCS_calibration, CCS_Bruker_Calibration
 
-        if method=="linear":
+        if method == "linear":
             polarity = self.cali_info["KeyPolarity"].iloc[0]
             # calibrants in chemical formula
             calibrants = self.cali_info.at["ReferenceMobilityPeakNames", "Value"].decode()
@@ -91,7 +91,7 @@ class MSIDataset:
             )
             # model x->y
             calibrator = CCS_calibration(calibrants, raw_mob, polarity)
-        elif method=="internal":
+        elif method == "internal":
             calibrator = CCS_Bruker_Calibration()
         else:
             raise NotImplementedError("Method not implemented!")
@@ -215,7 +215,7 @@ class MSIDataset:
             assert roi in self.rois
             frame_indices = self.rois[roi]
         else:
-            frame_indices = np.arange(1, self.data.frame_max_index)        
+            frame_indices = np.arange(1, self.data.frame_max_index)
         # if isinstance(intensity_threshold, float):
         # np.max(peak_list["total_intensity"]) * intensity_threshold
         # use dataframe for missing values
@@ -245,7 +245,7 @@ class MSIDataset:
         intensity_threshold=None,
         roi=None,  # what if there are multiple ROIs?
         visualize=False,
-        ccs_calibration=False,
+        ccs_calibration=True,
         **kwargs,
     ) -> Dict:
         """Process the dataset to peak picked and aligned data cube
@@ -278,7 +278,8 @@ class MSIDataset:
             peak_list = peak_list.loc[indices]
             peak_extents = peak_extents.loc[indices]
         intensity_array = self.integrate_intensity(peak_list, peak_extents, roi)
-
+        peak_list.index = np.arange(1, peak_list.shape[0] + 1)
+        peak_extents.index = peak_list.index
         # intensity_array.fillna(0.0, inplace=True)
 
         results = {
@@ -286,9 +287,6 @@ class MSIDataset:
             "peak_list": peak_list,
             "intensity_array": intensity_array,
         }  # 3 dataframes
-        if visualize is True:
-            app = _visualize(self, mean_spec, peak_list, peak_extents)
-            results["viz"] = app
 
         if ccs_calibration is True:
             calibrator = self.ccs_calibrator()
@@ -299,6 +297,18 @@ class MSIDataset:
             )
             results["peak_list"]["ccs_values"] = ccs_values
             results["ccs_calibrator"] = calibrator
+
+        if visualize is True:
+            # app = _visualize(self, mean_spec, peak_list, peak_extents)
+            # results["viz"] = app
+            dashboard = MSIDashboard(
+                dataset=self,
+                mean_spectrum=mean_spec,
+                peak_list=peak_list,
+                peak_extents=peak_extents,
+                intensity_array=intensity_array,
+            )
+            results["viz"] = dashboard
 
         return results
 
@@ -450,7 +460,8 @@ class Frame:
         self,
         tolerance: Iterable[int | float] | int | float | None = 2,
         metric: Literal["euclidean", "chebyshev"] = "euclidean",
-        count_thrshold=5,  # at least 5 points for a 3D peak
+        count_threshold: int = 5,  # at least 5 points for a 3D peak
+        # smoothing: Iterable[int | float] | int | float | None = 2,
         window_size: Iterable[int] = [17, 7],
         adaptive_window=False,
         subdivide=True,
@@ -469,8 +480,8 @@ class Frame:
         :type tolerance: Iterable[int  |  float] | int | float | None, optional
         :param metric: distance metric, defaults to "euclidean"
         :type metric: Literal[&quot;euclidean&quot;, &quot;chebyshev&quot;], optional
-        :param count_thrshold: minimum count of data points for a peak, defaults to 5
-        :type count_thrshold: int, optional
+        :param count_threshold: minimum count of data points for a peak, defaults to 25
+        :type count_threshold: int, optional
         :param window_size: [mobility, mz] window size of the maximum filter for step 2, defaults to [17, 7]
         :type window_size: Iterable[int], optional
         :param adaptive_window: if True, the function would determine the maximum filter size automatically and override `window_size`, defaults to False
@@ -497,7 +508,7 @@ class Frame:
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
 
         print("Traversing graph...")
-        group_labels = graph.group_nodes(count_thrshold=count_thrshold)  # ndarray of (k,)
+        group_labels = graph.group_nodes(count_threshold=count_threshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
@@ -612,83 +623,3 @@ class Frame:
 
     def lower_star_filter(self):
         pass
-
-
-def export_imzML(
-    dataset: MSIDataset,
-    path: str,
-    peaks: Dict = None,
-    mode: Literal["centroid", "profile"] = "centroid",
-    imzml_mode: Literal["continuous", "processed"] = "continuous",
-):
-    """Export processed data as imzML format with ion mobility
-
-    :param dataset: the original dataset, contains necessary metadata
-    :type dataset: MSIDataset
-    :param path: path of the output
-    :type path: str
-    :param peaks: processing results from MSIDataset.process(), defaults to None
-    :type peaks: Dict, optional
-    :param mode: , defaults to "centroid"
-    :type mode: Literal[&quot;centroid&quot;, &quot;profile&quot;], optional
-    :param imzml_mode: mode of arrays in the imzML file, defaults to "continuous"
-    :type imzml_mode: Literal[&quot;continuous&quot;, &quot;processed&quot;], optional
-    """
-    key_polarity = dataset.cali_info["KeyPolarity"].iloc[0]
-    if key_polarity == "+":
-        polarity = "positive"
-    elif key_polarity == "-":
-        polarity = "negative"
-    compression_object = NoCompression()
-    # create imzML and ibd files
-    writer = ImzMLWriter(
-        path,
-        polarity=polarity,
-        mode=imzml_mode,
-        spec_type=mode,
-        mz_dtype=np.float64,
-        intensity_dtype=np.float64,
-        mobility_dtype=np.float64,
-        mz_compression=compression_object,
-        intensity_compression=compression_object,
-        mobility_compression=compression_object,
-        include_mobility=True,
-    )
-    if peaks is None:
-        mean_spec = dataset.mean_spectra(frequency_threshold=0.05)
-        peak_list, peak_extents = mean_spec.peakPick(
-            return_extents=True,
-        ).values()
-        # get peak picked frames
-
-        intensity_arrays = pd.DataFrame(index=np.arange(1, dataset.data.frame_max_index))
-        # can I use pure Numpy here?
-        for i in range(peak_extents.shape[0]):
-            mz_min, mz_max, mob_min, mob_max = peak_extents.iloc[i]
-            # all data for i-th peak
-            image_data = dataset.data[:, mob_min:mob_max, 0, mz_min:mz_max]
-            intensity_arrays[i + 1] = image_data.groupby("frame_indices")["intensity_values"].sum()
-        intensity_array = intensity_arrays.copy().fillna(0)
-
-    else:
-        peak_list = peaks["peak_list"]
-        intensity_array = peaks["intensity_array"]
-    # pos = dataset.pos.set_index("Frame")
-
-    # indices_sorted = peak_list.sort_values("mz_values").index
-    indices_sorted = np.argsort(peak_list["mz_values"])
-
-    mz_array = peak_list["mz_values"].to_numpy()[indices_sorted]
-    mobility_array = peak_list["mobility_values"].to_numpy()[indices_sorted]
-    intensity_array = intensity_array.iloc[:, indices_sorted]
-    # write files
-    for frame in tqdm(intensity_array.index):
-        # or I can do adhoc extraction here?
-
-        writer.addSpectrum(
-            mzs=mz_array,
-            intensities=intensity_array.loc[frame].to_numpy(),
-            mobilities=mobility_array,
-            coords=dataset.pos.loc[frame],
-        )
-    writer.close()
