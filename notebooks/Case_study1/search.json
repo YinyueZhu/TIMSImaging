@@ -74,7 +74,7 @@
     "href": "2-mouse_kidney.html#view-interactive-results",
     "title": "2  Data processing in TIMSImaging",
     "section": "2.7 View Interactive Results",
-    "text": "2.7 View Interactive Results\nUser can explore the results in the GUI. By clicking pixels in the image(top left), users can view its mass spectrum(bottom middle), mobilogram(top right) and 2D spectogram combining these two(top middle). Also, users can click entries in the peak list(bottom left) to investigate ion images and spectral details of that peak. The menu(bottom right) provide summarizing functions like TIC image and mean spectrum, as well as file export options. This requires a living Python session to render, here shows a screenshot:\n\nshow(results['viz'])",
+    "text": "2.7 View Interactive Results\nUser can explore the results in the GUI. By clicking pixels in the image(top left), users can view its mass spectrum(bottom middle), mobilogram(top right) and 2D spectogram combining these two(top middle). Also, users can click entries in the peak list(bottom left) to investigate ion images and spectral details of that peak. The menu(bottom right) provide summarizing functions like TIC image and mean spectrum, as well as file export options. This requires a living Python session to render, here shows a screenshot:\n\nresults['viz'].view().show()\n\nLaunching server at http://localhost:6901\n\n\n&lt;panel.io.server.Server at 0x2b76f44e310&gt;",
     "crumbs": [
       "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
     ]
@@ -84,7 +84,7 @@
     "href": "2-mouse_kidney.html#isomer_separation",
     "title": "2  Data processing in TIMSImaging",
     "section": "2.8 Separate ions by ion mobility",
-    "text": "2.8 Separate ions by ion mobility\nIsobaric ions, or ions with non-distinguishable m/z(for example, isomers) could be separated by ion mobility. As examples shown below, TIMSImaging detected both peaks.\n\nfrom bokeh.layouts import row\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1079, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1080, results=results)\nshow(row(isomer1, isomer2))\n\n\n  \n\n\n\n\n\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, i=1163, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, i=1164, results=results)\nshow(row(isomer1, isomer2))",
+    "text": "2.8 Separate ions by ion mobility\nIsobaric ions, or ions with non-distinguishable m/z (for example, isomers) could be separated by ion mobility. As examples shown below, TIMSImaging detected both peaks. The intensity maps are shown below as screenshots, users can click corresponding features in the GUI to reproduce them.\n\nfrom bokeh.layouts import row\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, feature_index=1079, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, feature_index=1080, results=results)\nshow(row(isomer1, isomer2, width=500, height=500))\n\n\n  \n\n\n\n\n\n\n\nisomer1, _  = timsimaging.plotting.image(dataset, feature_index=1163, results=results)\nisomer2, _  = timsimaging.plotting.image(dataset, feature_index=1164, results=results)\nshow(row(isomer1, isomer2, width=500, height=500))",
     "crumbs": [
       "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
     ]
@@ -94,7 +94,7 @@
     "href": "2-mouse_kidney.html#imzML_export",
     "title": "2  Data processing in TIMSImaging",
     "section": "2.9 Export the processed data in imzML format",
-    "text": "2.9 Export the processed data in imzML format\nFinally, we export the processed data as continuous, centroid imzML file for downstream analysis in Cardinal.\n\ntimsimaging.spectrum.export_imzML(dataset, path=r\"D:/dataset/Kidney_MS1_ITO6\", peaks=results)",
+    "text": "2.9 Export the processed data in imzML format\nFinally, we export the processed data as continuous, centroid imzML file for downstream analysis in Cardinal.\n\ntimsimaging.io.export_imzML(dataset, path=r\"D:/dataset/Kidney_MS1_ITO6\", peaks=results)",
     "crumbs": [
       "<span class='chapter-number'>2</span>  <span class='chapter-title'>Data processing in TIMSImaging</span>"
     ]

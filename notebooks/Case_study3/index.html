@@ -31,7 +31,7 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./7-lipids_annotation.html" rel="next">
+<link href="./7-mouse_skin.html" rel="next">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
 <script src="site_libs/quarto-html/axe/axe-check.js" type="module"></script>
@@ -93,7 +93,7 @@ ul.task-list li input[type="checkbox"] {
   </nav>
 </header>
 <!-- content -->
-<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-full">
 <!-- sidebar -->
   <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
     <div class="pt-lg-2 mt-2 text-left sidebar-header sidebar-header-stacked">
@@ -118,20 +118,26 @@ ul.task-list li input[type="checkbox"] {
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./7-lipids_annotation.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Downstream Analysis – feature annotation</span></span></a>
+  <a href="./7-mouse_skin.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Data processing in TIMSImaging and CCS calculation</span></span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./8-lipid_annotation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><span class="chapter-number">3</span>&nbsp; <span class="chapter-title">Lipids annotation with CCS database match</span></span></a>
   </div>
 </li>
     </ul>
     </div>
+    
 </nav>
 <div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
     </div>
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content column-page-right" id="quarto-document-content">
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
@@ -140,7 +146,7 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<div class="quarto-title-meta">
+<div class="quarto-title-meta column-page-right">
 
     <div>
     <div class="quarto-title-meta-heading">Author</div>
@@ -158,8 +164,8 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>In this case study, we perform feature annotation on a mouse skin lipids dataset. First we process the data to extract a feature list, then calculate collision cross section (CCS) values from ion mobility. Annotation is base d on m/z and CCS matching against CCS Compendium.</p>
-<p>The dataset is from and available at <a href="https://zenodo.org/records/18713016">https://zenodo.org/records/18713016</a>.</p>
+<p>In this case study, we perform feature annotation on a mouse skin lipids dataset. First we process the raw data to extract a feature list, and calculate collision cross section (CCS) values from ion mobility. Then we search the feature list against the CCS Comependium database. Finally we annotate the imzML using METASPACE, and compare METASPACE results with CCS matching results.</p>
+<p>The dataset is from Alexander Nyström Lab and available at <a href="https://zenodo.org/records/18713016">https://zenodo.org/records/18713016</a>.</p>
 
 
 
@@ -564,12 +570,12 @@ ul.task-list li input[type="checkbox"] {
     }
   });
   </script>
-<nav class="page-navigation">
+<nav class="page-navigation column-page-right">
   <div class="nav-page nav-page-previous">
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./7-lipids_annotation.html" class="pagination-link" aria-label="Downstream Analysis -- feature annotation">
-        <span class="nav-page-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Downstream Analysis – feature annotation</span></span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./7-mouse_skin.html" class="pagination-link" aria-label="Data processing in TIMSImaging and CCS calculation">
+        <span class="nav-page-text"><span class="chapter-number">2</span>&nbsp; <span class="chapter-title">Data processing in TIMSImaging and CCS calculation</span></span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
