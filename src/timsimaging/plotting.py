@@ -4,6 +4,8 @@ import param
 import panel as pn
 import pandas as pd
 import xarray as xr
+import os
+import sqlite3
 
 from bokeh.models import (
     ColumnDataSource,
@@ -368,7 +370,7 @@ def mobilogram(data: pd.DataFrame, transposed: bool = False) -> Tuple[figure, Co
             title="Mobilogram",
             toolbar_location="right",
             x_axis_label="intensity",
-            y_axis_label=r"$$1/K_0$$",
+            y_axis_label="1/K\u2080",
         )
         mob = f.line(
             x="intensity_values",
@@ -652,6 +654,237 @@ def heatmap_ds(
     return f, source
 
 
+def preview_tic(bruker_d_folder: str) -> Tuple[figure, ColumnDataSource]:
+    """Preview the TIC image directly from analysis.tdf, without loading
+    raw detector data via AlphaTims.
+
+    Only two small SQLite tables are read (Frames, MaldiFrameInfo) — this
+    never touches tof_indices/intensity_values, so it's safe to run on
+    datasets of any size, including the 100GB+ case, before deciding
+    whether to do a full load.
+
+    :param bruker_d_folder: path to the .d folder
+    :type bruker_d_folder: str
+    :return: TIC preview figure and its data source
+    :rtype: Tuple[figure, ColumnDataSource]
+    """
+    tdf_path = os.path.join(bruker_d_folder, "analysis.tdf")
+
+    with sqlite3.connect(tdf_path) as con:
+        # SummedIntensities is the precomputed per-frame TIC
+        tic = pd.read_sql(
+            "SELECT Id AS Frame, SummedIntensities FROM Frames", con
+        ).set_index("Frame")
+        pos = pd.read_sql(
+            "SELECT Frame, XIndexPos, YIndexPos FROM MaldiFrameInfo", con
+        ).set_index("Frame")
+
+    df = pos.join(tic, how="inner").reset_index()
+
+    source = ColumnDataSource(df)
+    source.data["normalized"] = df["SummedIntensities"] / df["SummedIntensities"].max()
+
+    f = figure(
+        title="TIC preview",
+        match_aspect=True,
+        toolbar_location="right",
+        x_axis_label="X",
+        y_axis_label="Y",
+    )
+    f.toolbar.active_scroll = f.select_one({"type": WheelZoomTool})
+    f.y_range.flipped = True  # (0,0) top-left, consistent with image()
+
+    cmap = linear_cmap("normalized", palette="Viridis256", low=0, high=1)
+    pixel_grid = f.rect(
+        x="XIndexPos", y="YIndexPos", width=1, height=1,
+        source=source, color=cmap,
+    )
+    color_bar = pixel_grid.construct_color_bar()
+    f.add_layout(color_bar, "right")
+
+    hover = HoverTool(
+        renderers=[pixel_grid],
+        tooltips=[
+            ("X", "@XIndexPos"),
+            ("Y", "@YIndexPos"),
+            ("Frame", "@Frame"),
+            ("TIC", "@SummedIntensities"),
+        ],
+    )
+    f.add_tools(hover)
+    return f, source
+
+class FrameDashboard(param.Parameterized):
+    """Simplified dashboard for visualizing a single Frame.
+    Shows the datashader-rasterized heatmap with linked 1D projections.
+    No ion image or peak list.
+    """
+
+    x_start = param.Number()
+    x_end   = param.Number()
+    y_start = param.Number()
+    y_end   = param.Number()
+
+    def __init__(self, frame: "Frame", **params):
+        super().__init__(**params)
+        self._frame = frame
+        self._current_df = frame.data
+        self._init_figures()
+        self._wire_callbacks()
+        self._init_widgets()
+
+    # ── Initialisation ────────────────────────────────────────────────────
+
+    def _init_figures(self):
+        df = self._frame.data
+
+        self.heatmap_fig, self.heatmap_source = heatmap_ds(self._frame)
+        self.spec_fig,    self.spec_source    = spectrum(
+            df.groupby("mz_values")["intensity_values"].sum().reset_index()
+        )
+        self.mob_fig, self.mob_source = mobilogram(
+            df.groupby("mobility_values")["intensity_values"].sum().reset_index(),
+            transposed=True,
+        )
+
+        # Link axes
+        self.spec_fig.x_range = self.heatmap_fig.x_range
+        self.mob_fig.y_range  = self.heatmap_fig.y_range
+        self.spec_fig.height  = self.heatmap_fig.height // 2
+        self.mob_fig.width    = self.heatmap_fig.width  // 2
+
+        self.param.update(
+            x_start=df["mz_values"].min(),
+            x_end=df["mz_values"].max(),
+            y_start=df["mobility_values"].min(),
+            y_end=df["mobility_values"].max(),
+        )
+
+    def _wire_callbacks(self):
+        xr, yr = self.heatmap_fig.x_range, self.heatmap_fig.y_range
+
+        def _range_changed(attr, old, new):
+            self.param.update(
+                x_start=xr.start, x_end=xr.end,
+                y_start=yr.start, y_end=yr.end,
+            )
+
+        xr.on_change("start", _range_changed)
+        xr.on_change("end",   _range_changed)
+        yr.on_change("start", _range_changed)
+        yr.on_change("end",   _range_changed)
+
+    def _init_widgets(self):
+        self.rerasterize_btn = pn.widgets.Button(
+            name="Refresh heatmap", button_type="warning"
+        )
+        self.rerasterize_btn.on_click(lambda e: self._rerasterize())
+
+        # self.smooth_slider = pn.widgets.FloatSlider(
+        #     name="Projection smoothing",
+        #     start=0.0, end=5.0, step=0.1, value=0.0,
+        # )
+        # self.smooth_slider.param.watch(
+        #     lambda e: pn.state.execute(self._update_projections), ["value"]
+        # )
+
+    # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _smooth(self, y: np.ndarray) -> np.ndarray:
+        sigma = self.smooth_slider.value
+        if sigma == 0:
+            return y
+        from scipy.ndimage import gaussian_filter1d
+        return gaussian_filter1d(y.astype(float), sigma=sigma)
+
+    # ── Rerasterization ───────────────────────────────────────────────────
+
+    def _rerasterize(self):
+        xr = self.heatmap_fig.x_range
+        yr = self.heatmap_fig.y_range
+        try:
+            x0, x1 = xr.start, xr.end
+            y0, y1 = yr.start, yr.end
+        except Exception:
+            return
+        if None in (x0, x1, y0, y1):
+            return
+
+        x0 = max(x0, self.heatmap_fig._ds_x_min)
+        x1 = min(x1, self.heatmap_fig._ds_x_max)
+        y0 = max(y0, self.heatmap_fig._ds_y_min)
+        y1 = min(y1, self.heatmap_fig._ds_y_max)
+        if x0 >= x1 or y0 >= y1:
+            return
+
+        try:
+            pw = self.heatmap_fig.inner_width
+            ph = self.heatmap_fig.inner_height
+        except Exception:
+            pw, ph = 600, 600
+
+        new_agg = self.heatmap_fig._ds_rasterize(x0, x1, y0, y1, pw, ph)
+
+        valid = new_agg[np.isfinite(new_agg) & (new_agg > 0)]
+        if valid.size:
+            self.heatmap_fig._ds_cmap.low  = float(valid.min())
+            self.heatmap_fig._ds_cmap.high = float(valid.max())
+
+        self.heatmap_fig._ds_source.data = {"image": [new_agg]}
+
+        glyph = self.heatmap_fig._ds_glyph.glyph
+        glyph.x  = x0
+        glyph.y  = y0
+        glyph.dw = x1 - x0
+        glyph.dh = y1 - y0
+
+    # ── Param watchers ────────────────────────────────────────────────────
+
+    @param.depends("x_start", "x_end", "y_start", "y_end", watch=True)
+    def _update_projections(self):
+        df   = self._current_df
+        view = df.loc[
+            df["mz_values"].between(self.x_start, self.x_end)
+            & df["mobility_values"].between(self.y_start, self.y_end)
+        ]
+        spec = view.groupby("mz_values")["intensity_values"].sum().reset_index()
+        mob  = view.groupby("mobility_values")["intensity_values"].sum().reset_index()
+
+        # spec["intensity_values"] = self._smooth(spec["intensity_values"].to_numpy())
+        # mob["intensity_values"]  = self._smooth(mob["intensity_values"].to_numpy())
+
+        self.spec_source.data = dict(spec)
+        self.mob_source.data  = dict(mob)
+
+    # ── Layout ────────────────────────────────────────────────────────────
+
+    def view(self):
+        heatmap_grid = gridplot(
+            [[self.heatmap_fig, self.mob_fig],
+             [self.spec_fig,    None]],
+            toolbar_location="right",
+            merge_tools=True,
+        )
+        for p, *_ in heatmap_grid.children:
+            # p.title.text_font_size = "16pt"
+
+            p.xaxis.axis_label_text_font_size = "20pt"
+            p.yaxis.axis_label_text_font_size = "20pt"
+
+            # p.xaxis.major_label_text_font_size = "12pt"
+            # p.yaxis.major_label_text_font_size = "12pt"
+
+            # p.legend.label_text_font_size = "12pt"
+        controls = pn.WidgetBox(
+            self.rerasterize_btn,
+            #self.smooth_slider,
+        )
+        return pn.Row(
+            pn.pane.Bokeh(heatmap_grid, sizing_mode="stretch_both"),
+            controls,
+            sizing_mode="stretch_width",
+        )
+    
 class MSIDashboard(param.Parameterized):
     """Interactive Panel + Bokeh dashboard for exploring an MSI dataset.
 
