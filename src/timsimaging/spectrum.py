@@ -32,7 +32,7 @@ class MSIDataset:
         :param path: path of the .d directory
         :type path: str
         """
-        self.data = alphatims.bruker.TimsTOF(path, use_hdf_if_available=False)
+        self.data = alphatims.bruker.TimsTOF(path)
         # not inherit TimsTOF directly for future detachment
 
         # parse .tdf SQL file
