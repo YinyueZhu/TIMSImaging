@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import sqlite3
 import os
-from tqdm import tqdm
 
 # from ripser import ripser
 from scipy.sparse import coo_matrix
@@ -15,7 +14,7 @@ from typing import List, Tuple, Iterable, Literal, Dict
 
 
 from bokeh.plotting import show
-from .utils import CoordsGraph, local_maxima
+from .utils import CoordsGraph, local_maxima, build_scan_index, integrate_peaks
 
 # from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
@@ -218,24 +217,49 @@ class MSIDataset:
             frame_indices = np.arange(1, self.data.frame_max_index)
         # if isinstance(intensity_threshold, float):
         # np.max(peak_list["total_intensity"]) * intensity_threshold
-        # use dataframe for missing values
+        if self.data.precursor_max_index > 1:
+            raise NotImplementedError(
+                "integrate_intensity assumes MS1-only acquisition; "
+                "this dataset contains fragmentation data."
+            )
+
+        # peaks are matched positionally, as the kernel writes column `i` for row `i`
+        assert peak_extents.shape[0] == n_peak, "peak_list and peak_extents are misaligned"
+        extents = peak_extents[["tof_indices", "scan_indices"]].to_numpy().astype(np.int64)
+        tof_lows, tof_highs, scan_lows, scan_highs = extents.T
+
+        # scan -> peaks lookup, so every push is visited at most once per peak
+        covered_scans, scan_indptr, scan_peaks = build_scan_index(
+            scan_lows, scan_highs, self.data.scan_max_index
+        )
+
+        # frames not in the ROI get row -1 and are skipped by the kernel
+        frame_rows = np.full(self.data.frame_max_index, -1, dtype=np.int64)
+        frame_rows[frame_indices] = np.arange(frame_indices.shape[0])
+
+        values = np.zeros((frame_indices.shape[0], n_peak))  # (n_pixel, n_peak)
+        print(f"Integrating {n_peak} peaks over {frame_indices.shape[0]} pixels...")
+        # threaded over frames, with a progress bar per alphatims.utils.set_progress_callback
+        integrate_peaks(
+            frame_indices,
+            self.data.push_indptr,
+            self.data.tof_indices,
+            self.data.intensity_values,
+            self.data.scan_max_index,
+            tof_lows,
+            tof_highs,
+            covered_scans,
+            scan_indptr,
+            scan_peaks,
+            frame_rows,
+            values,
+        )
+
         intensity_array = pd.DataFrame(
-            None,
-            index=frame_indices,
-            columns=np.arange(1, n_peak + 1),
-        )  # (n_pixel, n_peak)
-        intensity_array.index.name = "Pixel index"
-        intensity_array.columns.name = "Feature index"
-        for i in tqdm(range(n_peak)):
-            tof_min, tof_max, scan_min, scan_max = peak_extents.iloc[i][
-                ["tof_indices", "scan_indices"]
-            ].astype(int)
-            indices = self.data[
-                :, scan_min : (scan_max + 1), 0, tof_min : (tof_max + 1), "raw"
-            ]  # all data points of a peak
-            intensity_array[i + 1] = self.data.bin_intensities(indices, axis=["rt_values"])[
-                frame_indices
-            ]  # JIT function
+            values,
+            index=pd.Index(frame_indices, name="Pixel index"),
+            columns=pd.Index(np.arange(1, n_peak + 1), name="Feature index"),
+        )
         return intensity_array
 
     def process(
