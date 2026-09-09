@@ -224,6 +224,37 @@ def integrate_peaks(
             out[row, peak] += total
 
 
+@alphatims.utils.pjit
+def sum_scan_intensities(
+    scan,
+    frame_indices,
+    push_indptr,
+    tof_indices,
+    intensity_values,
+    scan_max_index,
+    out,
+):
+    """Sum the raw intensities of one mobility bin over the selected frames.
+
+    Walks the raw arrays directly instead of materialising a per-datapoint
+    index array: a push holds all datapoints of one (frame, scan) pair, so its
+    scan coordinate is known up front and needs no lookup in `push_indptr`.
+
+    Decorated with :func:`alphatims.utils.pjit`, so the caller passes an
+    iterable of scan indices as the first argument; the scans are then spread
+    over threads and reported through alphatims' progress callback.
+
+    `out` is indexed (scan, tof) rather than (tof, scan) so that each thread
+    accumulates into one contiguous row it exclusively owns -- that keeps the
+    writes race-free and the working set inside cache.
+    """
+    row = out[scan]
+    for i in range(frame_indices.shape[0]):
+        push = frame_indices[i] * scan_max_index + scan
+        for idx in range(push_indptr[push], push_indptr[push + 1]):
+            row[tof_indices[idx]] += intensity_values[idx]
+
+
 def local_maxima(dense_mx: pd.DataFrame, window_size=[5, 5]) -> pd.Series:
     """Find positions and values of local maxima of an dense array
     `dense_mx` is a (M,N) dataframe so that the positions could be other than ordinal indices

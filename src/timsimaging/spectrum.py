@@ -14,7 +14,13 @@ from typing import List, Tuple, Iterable, Literal, Dict
 
 
 from bokeh.plotting import show
-from .utils import CoordsGraph, local_maxima, build_scan_index, integrate_peaks
+from .utils import (
+    CoordsGraph,
+    local_maxima,
+    build_scan_index,
+    integrate_peaks,
+    sum_scan_intensities,
+)
 
 # from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
@@ -167,29 +173,50 @@ class MSIDataset:
         #     intensity_indices = np.arange(len(self.data))
         #     n_frame = self.data.frame_max_index - 1
 
-        # randomly pick frames out of n
+        # randomly pick frames out of n, without replacement so that no pixel is
+        # counted twice, and sorted so the raw arrays are traversed in order
         if sampling_ratio < 1:
             n_frame = int(frame_indices.shape[0] * sampling_ratio)
-            frame_indices = np.random.choice(
-                frame_indices,
-                size=n_frame,
+            frame_indices = np.sort(
+                np.random.choice(
+                    frame_indices,
+                    size=n_frame,
+                    replace=False,
+                )
             )
-        elif sampling_ratio == 1:
+        else:
             n_frame = frame_indices.shape[0]
-        intensity_indices = self.data[frame_indices, "raw"]
+        frame_indices = np.ascontiguousarray(frame_indices, dtype=np.int64)
 
-        sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
+        # indexed (scan, tof) so each thread owns a contiguous row; transposed
+        # back to the (tof, scan) convention when the peaks are extracted below
+        sum_mx = np.zeros((self.data.scan_max_index, self.data.tof_max_index))
+        print(f"Summing {n_frame} pixels...")
+        sum_scan_intensities(
+            np.arange(self.data.scan_max_index),
+            frame_indices,
+            self.data.push_indptr,
+            self.data.tof_indices,
+            self.data.intensity_values,
+            self.data.scan_max_index,
+            sum_mx,
+        )
+
         if frequency_threshold is not None:
             intensity_cut = self.data.intensity_min_value * n_frame * frequency_threshold
-            tof_indices, scan_indices = np.nonzero(sum_mx > intensity_cut)
+            scan_indices, tof_indices = np.nonzero(sum_mx > intensity_cut)
         else:
-            tof_indices, scan_indices = sum_mx.nonzero()
+            scan_indices, tof_indices = sum_mx.nonzero()
+        # `out` is scan-major, so restore the tof-major order of the peak list
+        order = np.lexsort((scan_indices, tof_indices))
+        scan_indices = scan_indices[order]
+        tof_indices = tof_indices[order]
 
         mean_spec = pd.DataFrame(
             {
                 "tof_indices": tof_indices,
                 "scan_indices": scan_indices,
-                "intensity_values": sum_mx[tof_indices, scan_indices] / n_frame,
+                "intensity_values": sum_mx[scan_indices, tof_indices] / n_frame,
             }
         )
 
