@@ -48,19 +48,20 @@ class CoordsGraph:
         return self.coords.shape[0]
 
     def group_nodes(self, breath_first=False, count_threshold=5) -> np.ndarray:
+        from scipy.sparse.csgraph import connected_components
 
-        if breath_first is True:
-            search_func = bfs
-        else:
-            search_func = dfs
-        group_labels = search_func(
-            n_nodes=len(self),
-            indices=self.adjacency_mx.indices,
-            indptr=self.adjacency_mx.indptr,
-            count_threshold=count_threshold,
-        )
+        adj = self.adjacency_mx.tocsr()
+        n_comp, labels = connected_components(adj, directed=False)
 
-        return group_labels
+        # component ids from scipy start at 0; renumber kept components to
+        # 1..M so that 0 stays reserved for "unlabeled" nodes
+        sizes = np.bincount(labels, minlength=n_comp)
+        keep = sizes >= count_threshold
+        new_ids = np.zeros(n_comp, dtype=np.int64)
+        new_ids[keep] = np.arange(np.count_nonzero(keep)) + 1
+        labels = new_ids[labels]
+
+        return labels.astype(np.int32)
 
 
 # traverse a graph represented as a sparse matrix
