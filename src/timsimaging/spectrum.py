@@ -2,6 +2,7 @@ import alphatims.utils
 import alphatims.bruker
 
 import struct
+import warnings
 import numpy as np
 import pandas as pd
 import sqlite3
@@ -28,6 +29,27 @@ from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
 __all__ = ["MSIDataset", "Frame"]
 
 
+def _rois_from_pos(pos: pd.DataFrame) -> Dict[str, np.ndarray]:
+    """Group pixels into ROIs by the ``RegionNumber`` column of ``pos``.
+
+    :param pos: pixel table indexed by Frame, with a ``RegionNumber`` column.
+    :type pos: pd.DataFrame
+    :return: mapping of ROI keys (``"r0"``, ``"r1"``, ...) to sorted arrays of
+        frame indices, one entry per distinct region.  Rows without a region
+        number and tables without a ``RegionNumber`` column yield an empty
+        mapping.
+    :rtype: Dict[str, np.ndarray]
+    """
+    rois: Dict[str, np.ndarray] = {}
+    if "RegionNumber" not in pos.columns or pos["RegionNumber"].isna().all():
+        return rois
+    for region, frames in pos.index.groupby(pos["RegionNumber"]).items():
+        if pd.isna(region):
+            continue
+        rois[f"r{int(region)}"] = np.sort(np.asarray(frames, dtype=np.int64))
+    return rois
+
+
 class MSIDataset:
     """The class for a raw MSI dataset"""
 
@@ -42,13 +64,23 @@ class MSIDataset:
 
         # parse .tdf SQL file
         with sqlite3.connect(os.path.join(path, "analysis.tdf")) as con:
-            # read pixel coordinates
+            # read pixel coordinates and per-region membership
             # self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
             #     ["Frame", "XIndexPos", "YIndexPos"]
             # ]
-            self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con, index_col="Frame")[
-                ["XIndexPos", "YIndexPos"]
-            ]
+            try:
+                self.pos = pd.read_sql(
+                    "SELECT Frame, XIndexPos, YIndexPos, RegionNumber FROM MaldiFrameInfo",
+                    con,
+                    index_col="Frame",
+                )
+            except sqlite3.OperationalError:
+                # older TDFs without the region field
+                self.pos = pd.read_sql(
+                    "SELECT Frame, XIndexPos, YIndexPos FROM MaldiFrameInfo",
+                    con,
+                    index_col="Frame",
+                )
             # imaging resolution in μm
             img_res = pd.read_sql("SELECT * FROM MaldiFrameLaserInfo", con)["SpotSize"][0]
             # mass and ion mobility calibration info
@@ -59,7 +91,7 @@ class MSIDataset:
             self.data.mobility_values
         )
         self.resolution = {"xy": img_res, "mz": mz_res, "1/K0": mob_res}
-        self.rois = {}
+        self.rois = _rois_from_pos(self.pos)
 
     def __repr__(self):
         return f"{self.__class__.__name__} with {self.data.frame_max_index-1} pixels\n\
@@ -143,8 +175,39 @@ class MSIDataset:
         filt1 = self.pos["XIndexPos"] > xmin if xmin is not None else True
         filt2 = self.pos["XIndexPos"] < xmax if xmax is not None else True
         filt3 = self.pos["YIndexPos"] > ymin if ymin is not None else True
-        filt4 = self.pos["YIndexPos"] > ymax if ymax is not None else True
+        filt4 = self.pos["YIndexPos"] < ymax if ymax is not None else True
+        if name in self.rois:
+            warnings.warn(f"ROI '{name}' already exists and will be overwritten")
         self.rois[name] = self.pos.loc[filt1 & filt2 & filt3 & filt4].index.to_numpy()
+
+    def list_rois(self) -> pd.DataFrame:
+        """Summarize all ROIs currently defined in ``self.rois``.
+
+        Includes both the ROIs auto-loaded from the region numbers recorded
+        in ``MaldiFrameInfo`` and any manually defined via :meth:`set_ROI`.
+
+        :return: one row per ROI with its key, pixel count, and the bounding
+            box (in index coordinates) of the region.
+        :rtype: pd.DataFrame
+        """
+        columns = ["key", "n_pixels", "xmin", "xmax", "ymin", "ymax"]
+        entries = []
+        for name, frames in self.rois.items():
+            xy = self.pos.loc[frames, ["XIndexPos", "YIndexPos"]]
+            entries.append(
+                {
+                    "key": name,
+                    "n_pixels": len(frames),
+                    "xmin": xy["XIndexPos"].min(),
+                    "xmax": xy["XIndexPos"].max(),
+                    "ymin": xy["YIndexPos"].min(),
+                    "ymax": xy["YIndexPos"].max(),
+                }
+            )
+        summary = pd.DataFrame(entries, columns=columns)
+        if not summary.empty:
+            summary.sort_values("key", inplace=True)
+        return summary
 
     def mean_spectrum(
         self,
@@ -294,7 +357,7 @@ class MSIDataset:
         sampling_ratio=0.1,
         frequency_threshold=0.05,
         intensity_threshold=None,
-        roi=None,  # what if there are multiple ROIs?
+        roi=None,  # key into self.rois, e.g. an auto-loaded region "r0"
         visualize=False,
         ccs_calibration=True,
         **kwargs,
