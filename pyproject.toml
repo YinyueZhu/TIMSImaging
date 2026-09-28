@@ -57,6 +57,9 @@ dependencies = [
     "pyteomics",
 ]
 
+[project.scripts]
+timsimaging = "timsimaging.cli:main"
+
 [project.optional-dependencies]
 tests = [
     "pytest",

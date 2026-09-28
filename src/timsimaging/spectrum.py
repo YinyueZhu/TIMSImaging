@@ -1,3 +1,4 @@
+import logging
 import alphatims.utils
 import alphatims.bruker
 
@@ -27,6 +28,8 @@ from .utils import (
 from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
 
 __all__ = ["MSIDataset", "Frame"]
+
+logger = logging.getLogger(__name__)
 
 
 def _rois_from_pos(pos: pd.DataFrame) -> Dict[str, np.ndarray]:
@@ -65,9 +68,6 @@ class MSIDataset:
         # parse .tdf SQL file
         with sqlite3.connect(os.path.join(path, "analysis.tdf")) as con:
             # read pixel coordinates and per-region membership
-            # self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
-            #     ["Frame", "XIndexPos", "YIndexPos"]
-            # ]
             try:
                 self.pos = pd.read_sql(
                     "SELECT Frame, XIndexPos, YIndexPos, RegionNumber FROM MaldiFrameInfo",
@@ -254,7 +254,7 @@ class MSIDataset:
         # indexed (scan, tof) so each thread owns a contiguous row; transposed
         # back to the (tof, scan) convention when the peaks are extracted below
         sum_mx = np.zeros((self.data.scan_max_index, self.data.tof_max_index))
-        print(f"Summing {n_frame} pixels...")
+        logger.info("Summing %d pixels...", n_frame)
         sum_scan_intensities(
             np.arange(self.data.scan_max_index),
             frame_indices,
@@ -328,7 +328,9 @@ class MSIDataset:
         frame_rows[frame_indices] = np.arange(frame_indices.shape[0])
 
         values = np.zeros((frame_indices.shape[0], n_peak))  # (n_pixel, n_peak)
-        print(f"Integrating {n_peak} peaks over {frame_indices.shape[0]} pixels...")
+        logger.info(
+            "Integrating %d peaks over %d pixels...", n_peak, frame_indices.shape[0]
+        )
         # threaded over frames, with a progress bar per alphatims.utils.set_progress_callback
         integrate_peaks(
             frame_indices,
@@ -378,7 +380,7 @@ class MSIDataset:
         else:
             frame_indices = np.arange(1, self.data.frame_max_index)
 
-        print("Computing mean spectrum...")
+        logger.info("Computing mean spectrum...")
         mean_spec = self.mean_spectrum(
             sampling_ratio=sampling_ratio,
             frequency_threshold=frequency_threshold,
@@ -621,14 +623,14 @@ class Frame:
 
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
 
-        print("Traversing graph...")
+        logger.info("Traversing graph...")
         group_labels = graph.group_nodes(count_threshold=count_threshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
         )  # filter, then group
 
-        print("Finding local maxima...")
+        logger.info("Finding local maxima...")
         raw_apexes = []
         peak_labels = np.zeros_like(group_labels)
         current_group = 1
@@ -683,7 +685,7 @@ class Frame:
         peak_groups = self.data[peak_labels > 0].groupby(
             peak_labels[peak_labels > 0], group_keys=True
         )
-        print("Summarizing...")
+        logger.info("Summarizing...")
         # intensity-weighted mz and mob
         peak_list = peak_groups.apply(
             lambda df: df[["mz_values", "mobility_values"]].apply(
