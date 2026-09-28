@@ -118,7 +118,7 @@ class CCS_calibration:
 # Bruker's internal calibration
 import os
 import ctypes
-from alphatims.bruker import BRUKER_DLL_FILE_NAME
+from alpharaw.bruker.dll import BRUKER_DLL_FILE_NAME
 
 class CCS_Bruker_Calibration:
     def __init__(self) -> None:

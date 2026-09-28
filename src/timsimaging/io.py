@@ -356,6 +356,6 @@ def export_imzML(
             mzs=mz_array,
             intensities=intensity_array.loc[frame].to_numpy(),
             mobilities=mobility_array,
-            coords=dataset.pos.loc[frame],
+            coords=dataset.pos.loc[frame, ["XIndexPos", "YIndexPos"]],
         )
     writer.close()

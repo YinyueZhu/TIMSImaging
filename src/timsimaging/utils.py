@@ -1,3 +1,4 @@
+import alphatims.utils
 import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
@@ -10,9 +11,10 @@ from typing import Iterable, Literal
 # def rms_norm(x):
 #     return x/np.std(x)
 
+
 class CoordsGraph:
-    """A class for distance-based graph in high dimensional space
-    """
+    """A class for distance-based graph in high dimensional space"""
+
     def __init__(
         self,
         coordinates: np.ndarray,  # (n_sample, n_feature)
@@ -46,19 +48,21 @@ class CoordsGraph:
         return self.coords.shape[0]
 
     def group_nodes(self, breath_first=False, count_threshold=5) -> np.ndarray:
+        from scipy.sparse.csgraph import connected_components
 
-        if breath_first is True:
-            search_func = bfs
-        else:
-            search_func = dfs
-        group_labels = search_func(
-            n_nodes=len(self),
-            indices=self.adjacency_mx.indices,
-            indptr=self.adjacency_mx.indptr,
-            count_threshold=count_threshold,
-        )
+        adj = self.adjacency_mx.tocsr()
+        n_comp, labels = connected_components(adj, directed=False)
 
-        return group_labels
+        # component ids from scipy start at 0; renumber kept components to
+        # 1..M so that 0 stays reserved for "unlabeled" nodes
+        sizes = np.bincount(labels, minlength=n_comp)
+        keep = sizes >= count_threshold
+        new_ids = np.zeros(n_comp, dtype=np.int64)
+        new_ids[keep] = np.arange(np.count_nonzero(keep)) + 1
+        labels = new_ids[labels]
+
+        return labels.astype(np.int32)
+
 
 # traverse a graph represented as a sparse matrix
 @jit(nopython=True)
@@ -142,8 +146,118 @@ def bfs(n_nodes, indices, indptr, count_threshold=5):
     return group_labels
 
 
+def build_scan_index(scan_lows, scan_highs, scan_max_index):
+    """Invert per-peak scan extents into a scan -> peaks lookup.
+
+    Only scans covered by at least one peak are kept, so the integration kernel
+    never visits an empty mobility bin.
+
+    :return: ``(covered_scans, scan_indptr, scan_peaks)``, where the peaks
+        touching ``covered_scans[i]`` are ``scan_peaks[scan_indptr[i]:scan_indptr[i+1]]``
+    :rtype: Tuple[np.ndarray, np.ndarray, np.ndarray]
+    """
+    lows = np.clip(scan_lows, 0, scan_max_index - 1)
+    highs = np.clip(scan_highs, 0, scan_max_index - 1)
+    spans = highs - lows + 1
+
+    peaks = np.repeat(np.arange(spans.shape[0], dtype=np.int64), spans)
+    # offset within each peak's own scan span
+    offsets = np.arange(spans.sum(), dtype=np.int64) - np.repeat(np.cumsum(spans) - spans, spans)
+    # union of scan indices of all peaks
+    scans = np.repeat(lows, spans) + offsets
+
+    order = np.argsort(scans, kind="stable")
+    scans = scans[order]
+    peaks = peaks[order]
+
+    covered_scans, starts = np.unique(scans, return_index=True)
+    # between scan_indptr[i] and scan_indptr[i]+1: indices of all peaks that cover i-th scan
+    scan_indptr = np.append(starts, scans.shape[0])
+    return covered_scans, scan_indptr, peaks
+
+
+@alphatims.utils.pjit
+def integrate_peaks(
+    frame,
+    push_indptr,
+    tof_indices,
+    intensity_values,
+    scan_max_index,
+    tof_lows,
+    tof_highs,
+    covered_scans,
+    scan_indptr,
+    scan_peaks,
+    frame_rows,
+    out,
+):
+    """Sum the raw intensities of one frame into its row of a (pixel, peak) matrix.
+
+    Each peak is a rectangle in (tof, scan) space. Rather than querying the
+    whole dataset once per peak, this visits each of the frame's pushes once
+    and, for the peaks covering that push's scan, binary-searches the push's
+    (sorted) tof indices.
+
+    Decorated with :func:`alphatims.utils.pjit`, so the caller passes an
+    iterable of frame indices as the first argument; the frames are then spread
+    over threads and reported through alphatims' progress callback. Each frame
+    owns exactly one row of `out`, so the accumulation is race-free.
+
+    `frame_rows` maps a frame index to its row in `out`, or -1 to skip it.
+    """
+    row = frame_rows[frame]
+    if row < 0:
+        return
+    push_base = frame * scan_max_index
+    for i in range(covered_scans.shape[0]):
+        push = push_base + covered_scans[i] # only lookup scans with peaks detected
+        start = push_indptr[push]
+        end = push_indptr[push + 1]
+        if start == end:
+            continue
+        for k in range(scan_indptr[i], scan_indptr[i + 1]): # collect intensities for k-th peak
+            peak = scan_peaks[k]
+            idx = start + np.searchsorted(tof_indices[start:end], tof_lows[peak])
+            total = 0.0
+            while idx < end and tof_indices[idx] <= tof_highs[peak]:
+                total += intensity_values[idx] # collect like scanning
+                idx += 1
+            out[row, peak] += total
+
+
+@alphatims.utils.pjit
+def sum_scan_intensities(
+    scan,
+    frame_indices,
+    push_indptr,
+    tof_indices,
+    intensity_values,
+    scan_max_index,
+    out,
+):
+    """Sum the raw intensities of one mobility bin over the selected frames.
+
+    Walks the raw arrays directly instead of materialising a per-datapoint
+    index array: a push holds all datapoints of one (frame, scan) pair, so its
+    scan coordinate is known up front and needs no lookup in `push_indptr`.
+
+    Decorated with :func:`alphatims.utils.pjit`, so the caller passes an
+    iterable of scan indices as the first argument; the scans are then spread
+    over threads and reported through alphatims' progress callback.
+
+    `out` is indexed (scan, tof) rather than (tof, scan) so that each thread
+    accumulates into one contiguous row it exclusively owns -- that keeps the
+    writes race-free and the working set inside cache.
+    """
+    row = out[scan]
+    for i in range(frame_indices.shape[0]):
+        push = frame_indices[i] * scan_max_index + scan
+        for idx in range(push_indptr[push], push_indptr[push + 1]):
+            row[tof_indices[idx]] += intensity_values[idx]
+
+
 def local_maxima(dense_mx: pd.DataFrame, window_size=[5, 5]) -> pd.Series:
-    """Find positions and values of local maxima of an dense array  
+    """Find positions and values of local maxima of an dense array
     `dense_mx` is a (M,N) dataframe so that the positions could be other than ordinal indices
 
     :param dense_mx: the dense array, with axis domains
@@ -156,8 +270,10 @@ def local_maxima(dense_mx: pd.DataFrame, window_size=[5, 5]) -> pd.Series:
     if isinstance(dense_mx, pd.DataFrame):
         pass
     else:
-        dense_mx = pd.DataFrame(dense_mx) # if input is without axis domains
-    maxima = maximum_filter(dense_mx, size=window_size)  # (M, N) 
-    maxima = dense_mx.where((dense_mx == maxima) & dense_mx > 0) # (M, N) positions other than local maxima are np.nan
+        dense_mx = pd.DataFrame(dense_mx)  # if input is without axis domains
+    maxima = maximum_filter(dense_mx, size=window_size)  # (M, N)
+    maxima = dense_mx.where(
+        (dense_mx == maxima) & dense_mx > 0
+    )  # (M, N) positions other than local maxima are np.nan
     maxima_pos = maxima.stack()  # (y,x) multiindex peaklist
     return maxima_pos

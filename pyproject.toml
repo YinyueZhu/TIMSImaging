@@ -47,7 +47,7 @@ license = { file = "LICENSE" }
 
 requires-python = ">=3.9"
 dependencies = [
-    "alphatims==1.0.9",
+    "alphatims==1.1.0",
     "pandas==2.3.0",
     "scikit-learn",
     "bokeh",
@@ -56,6 +56,9 @@ dependencies = [
     "pyimzml @ git+https://github.com/gtluu/pyimzML.git@fe24388984aa96a18ef2ed54927ec05d6701cc04",
     "pyteomics",
 ]
+
+[project.scripts]
+timsimaging = "timsimaging.cli:main"
 
 [project.optional-dependencies]
 tests = [

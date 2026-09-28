@@ -43,6 +43,7 @@ pip install git+https://github.com/YinyueZhu/TIMSImaging.git
 The dependencies will be automatedly installed. TIMSImaging relies on [AlphaTIMS](https://github.com/MannLabs/alphatims) to access raw spectra, and a forked version of [pyimzML](https://github.com/gtluu/pyimzML) to write ion mobility arrays into imzML. AlphaTIMS includes Bruker TDFSDK dynamic library, which is only available on Windows and Linux.
   
 ## Usage
+### Jupyter Notebook
 ```python
 import timsimaging
 from bokeh.io import show, output_notebook
@@ -52,13 +53,30 @@ dataset = timsimaging.spectrum.MSIDataset("example_dataset.d")
 # spectral processing
 results = dataset.process(sampling_ratio=1, visualize=True, ccs_calibration=True)
 # visualize results
-show(results["viz"])
+results["viz"].view().show()
 # export imzML
-timsimaging.spectrum.export_imzML(dataset, "example_results", peaks=results)
+timsimaging.io.export_imzML(dataset, "example_results", peaks=results)
 ```
+### CLI
+`timsimaging` provides a CLI for processing automation. It runs ROI-ware peak-picking, 
+CCS calibration, exports a ROI summary, per-ROI peak list CSV as well as ion mobility-resolved imzML/IBD.
+
+```shell
+timsimaging process example_dataset.d \
+    --regions r0 r1 \
+    --output-dir results/ \
+    --sampling-ratio 0.5
+```
+
+This writes `roi_summary.csv` and `peak_list_<roi>.csv` (and, unless
+`--no-export-imzml` is passed, `<dataset>_<roi>.imzML`/`.ibd`) into
+`--output-dir`. If `--regions` is omitted, the whole dataset is processed as
+a single region. Run `timsimaging process --help`
+for the full list of options.
 
 The full documentation can be found [here](https://yinyuezhu.github.io/TIMSImaging/docs/build/html/).
 
+## Case Studies
 We illustrate the usage of TIMSImaging with 3 case studies: 
 * [Segmentation of peptide images of
 mouse kidney tissue](https://yinyuezhu.github.io/TIMSImaging/notebooks/Case_study1)
@@ -67,11 +85,10 @@ products images of microbial cultures](https://yinyuezhu.github.io/TIMSImaging/n
 * [Lipids annotation of mouse skin tissue](https://yinyuezhu.github.io/TIMSImaging/notebooks/Case_study3)
 
 
-<!--
-### 📖 Citation
+## Citation
 
-Citation goes here!
--->
+Yinyue Zhu, Kylie Ariel Bemis, Sai Srikanth Lakkimsetty, Mujia Jenny Li, Larissa Chiara Meyer, Andreas Weber-Steinhilber, Melanie Christine Föll, Olga Vitek, TIMSImaging: an open and interoperable workflow for trapped ion mobility mass spectrometry imaging data processing and visualization, Bioinformatics, Volume 42, Issue 9, September 2026, btag624[https://doi.org/10.1093/bioinformatics/btag624](https://doi.org/10.1093/bioinformatics/btag624)
+
 
 <!--
 ### 🎁 Support

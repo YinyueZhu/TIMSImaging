@@ -1,12 +1,13 @@
+import logging
 import alphatims.utils
 import alphatims.bruker
 
 import struct
+import warnings
 import numpy as np
 import pandas as pd
 import sqlite3
 import os
-from tqdm import tqdm
 
 # from ripser import ripser
 from scipy.sparse import coo_matrix
@@ -15,12 +16,41 @@ from typing import List, Tuple, Iterable, Literal, Dict
 
 
 from bokeh.plotting import show
-from .utils import CoordsGraph, local_maxima
+from .utils import (
+    CoordsGraph,
+    local_maxima,
+    build_scan_index,
+    integrate_peaks,
+    sum_scan_intensities,
+)
 
 # from .plotting import spectrum, mobilogram, heatmap, image, _visualize
 from .plotting import spectrum, mobilogram, heatmap, image, MSIDashboard
 
 __all__ = ["MSIDataset", "Frame"]
+
+logger = logging.getLogger(__name__)
+
+
+def _rois_from_pos(pos: pd.DataFrame) -> Dict[str, np.ndarray]:
+    """Group pixels into ROIs by the ``RegionNumber`` column of ``pos``.
+
+    :param pos: pixel table indexed by Frame, with a ``RegionNumber`` column.
+    :type pos: pd.DataFrame
+    :return: mapping of ROI keys (``"r0"``, ``"r1"``, ...) to sorted arrays of
+        frame indices, one entry per distinct region.  Rows without a region
+        number and tables without a ``RegionNumber`` column yield an empty
+        mapping.
+    :rtype: Dict[str, np.ndarray]
+    """
+    rois: Dict[str, np.ndarray] = {}
+    if "RegionNumber" not in pos.columns or pos["RegionNumber"].isna().all():
+        return rois
+    for region, frames in pos.index.groupby(pos["RegionNumber"]).items():
+        if pd.isna(region):
+            continue
+        rois[f"r{int(region)}"] = np.sort(np.asarray(frames, dtype=np.int64))
+    return rois
 
 
 class MSIDataset:
@@ -32,18 +62,25 @@ class MSIDataset:
         :param path: path of the .d directory
         :type path: str
         """
-        self.data = alphatims.bruker.TimsTOF(path, use_hdf_if_available=False)
+        self.data = alphatims.bruker.TimsTOF(path)
         # not inherit TimsTOF directly for future detachment
 
         # parse .tdf SQL file
         with sqlite3.connect(os.path.join(path, "analysis.tdf")) as con:
-            # read pixel coordinates
-            # self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con)[
-            #     ["Frame", "XIndexPos", "YIndexPos"]
-            # ]
-            self.pos = pd.read_sql("SELECT * FROM MaldiFrameInfo", con, index_col="Frame")[
-                ["XIndexPos", "YIndexPos"]
-            ]
+            # read pixel coordinates and per-region membership
+            try:
+                self.pos = pd.read_sql(
+                    "SELECT Frame, XIndexPos, YIndexPos, RegionNumber FROM MaldiFrameInfo",
+                    con,
+                    index_col="Frame",
+                )
+            except sqlite3.OperationalError:
+                # older TDFs without the region field
+                self.pos = pd.read_sql(
+                    "SELECT Frame, XIndexPos, YIndexPos FROM MaldiFrameInfo",
+                    con,
+                    index_col="Frame",
+                )
             # imaging resolution in μm
             img_res = pd.read_sql("SELECT * FROM MaldiFrameLaserInfo", con)["SpotSize"][0]
             # mass and ion mobility calibration info
@@ -54,7 +91,7 @@ class MSIDataset:
             self.data.mobility_values
         )
         self.resolution = {"xy": img_res, "mz": mz_res, "1/K0": mob_res}
-        self.rois = {}
+        self.rois = _rois_from_pos(self.pos)
 
     def __repr__(self):
         return f"{self.__class__.__name__} with {self.data.frame_max_index-1} pixels\n\
@@ -138,8 +175,39 @@ class MSIDataset:
         filt1 = self.pos["XIndexPos"] > xmin if xmin is not None else True
         filt2 = self.pos["XIndexPos"] < xmax if xmax is not None else True
         filt3 = self.pos["YIndexPos"] > ymin if ymin is not None else True
-        filt4 = self.pos["YIndexPos"] > ymax if ymax is not None else True
+        filt4 = self.pos["YIndexPos"] < ymax if ymax is not None else True
+        if name in self.rois:
+            warnings.warn(f"ROI '{name}' already exists and will be overwritten")
         self.rois[name] = self.pos.loc[filt1 & filt2 & filt3 & filt4].index.to_numpy()
+
+    def list_rois(self) -> pd.DataFrame:
+        """Summarize all ROIs currently defined in ``self.rois``.
+
+        Includes both the ROIs auto-loaded from the region numbers recorded
+        in ``MaldiFrameInfo`` and any manually defined via :meth:`set_ROI`.
+
+        :return: one row per ROI with its key, pixel count, and the bounding
+            box (in index coordinates) of the region.
+        :rtype: pd.DataFrame
+        """
+        columns = ["key", "n_pixels", "xmin", "xmax", "ymin", "ymax"]
+        entries = []
+        for name, frames in self.rois.items():
+            xy = self.pos.loc[frames, ["XIndexPos", "YIndexPos"]]
+            entries.append(
+                {
+                    "key": name,
+                    "n_pixels": len(frames),
+                    "xmin": xy["XIndexPos"].min(),
+                    "xmax": xy["XIndexPos"].max(),
+                    "ymin": xy["YIndexPos"].min(),
+                    "ymax": xy["YIndexPos"].max(),
+                }
+            )
+        summary = pd.DataFrame(entries, columns=columns)
+        if not summary.empty:
+            summary.sort_values("key", inplace=True)
+        return summary
 
     def mean_spectrum(
         self,
@@ -168,29 +236,50 @@ class MSIDataset:
         #     intensity_indices = np.arange(len(self.data))
         #     n_frame = self.data.frame_max_index - 1
 
-        # randomly pick frames out of n
+        # randomly pick frames out of n, without replacement so that no pixel is
+        # counted twice, and sorted so the raw arrays are traversed in order
         if sampling_ratio < 1:
             n_frame = int(frame_indices.shape[0] * sampling_ratio)
-            frame_indices = np.random.choice(
-                frame_indices,
-                size=n_frame,
+            frame_indices = np.sort(
+                np.random.choice(
+                    frame_indices,
+                    size=n_frame,
+                    replace=False,
+                )
             )
-        elif sampling_ratio == 1:
+        else:
             n_frame = frame_indices.shape[0]
-        intensity_indices = self.data[frame_indices, "raw"]
+        frame_indices = np.ascontiguousarray(frame_indices, dtype=np.int64)
 
-        sum_mx = self.data.bin_intensities(intensity_indices, axis=["mz_values", "mobility_values"])
+        # indexed (scan, tof) so each thread owns a contiguous row; transposed
+        # back to the (tof, scan) convention when the peaks are extracted below
+        sum_mx = np.zeros((self.data.scan_max_index, self.data.tof_max_index))
+        logger.info("Summing %d pixels...", n_frame)
+        sum_scan_intensities(
+            np.arange(self.data.scan_max_index),
+            frame_indices,
+            self.data.push_indptr,
+            self.data.tof_indices,
+            self.data.intensity_values,
+            self.data.scan_max_index,
+            sum_mx,
+        )
+
         if frequency_threshold is not None:
             intensity_cut = self.data.intensity_min_value * n_frame * frequency_threshold
-            tof_indices, scan_indices = np.nonzero(sum_mx > intensity_cut)
+            scan_indices, tof_indices = np.nonzero(sum_mx > intensity_cut)
         else:
-            tof_indices, scan_indices = sum_mx.nonzero()
+            scan_indices, tof_indices = sum_mx.nonzero()
+        # `out` is scan-major, so restore the tof-major order of the peak list
+        order = np.lexsort((scan_indices, tof_indices))
+        scan_indices = scan_indices[order]
+        tof_indices = tof_indices[order]
 
         mean_spec = pd.DataFrame(
             {
                 "tof_indices": tof_indices,
                 "scan_indices": scan_indices,
-                "intensity_values": sum_mx[tof_indices, scan_indices] / n_frame,
+                "intensity_values": sum_mx[scan_indices, tof_indices] / n_frame,
             }
         )
 
@@ -218,24 +307,51 @@ class MSIDataset:
             frame_indices = np.arange(1, self.data.frame_max_index)
         # if isinstance(intensity_threshold, float):
         # np.max(peak_list["total_intensity"]) * intensity_threshold
-        # use dataframe for missing values
+        if self.data.precursor_max_index > 1:
+            raise NotImplementedError(
+                "integrate_intensity assumes MS1-only acquisition; "
+                "this dataset contains fragmentation data."
+            )
+
+        # peaks are matched positionally, as the kernel writes column `i` for row `i`
+        assert peak_extents.shape[0] == n_peak, "peak_list and peak_extents are misaligned"
+        extents = peak_extents[["tof_indices", "scan_indices"]].to_numpy().astype(np.int64)
+        tof_lows, tof_highs, scan_lows, scan_highs = extents.T
+
+        # scan -> peaks lookup, so every push is visited at most once per peak
+        covered_scans, scan_indptr, scan_peaks = build_scan_index(
+            scan_lows, scan_highs, self.data.scan_max_index
+        )
+
+        # frames not in the ROI get row -1 and are skipped by the kernel
+        frame_rows = np.full(self.data.frame_max_index, -1, dtype=np.int64)
+        frame_rows[frame_indices] = np.arange(frame_indices.shape[0])
+
+        values = np.zeros((frame_indices.shape[0], n_peak))  # (n_pixel, n_peak)
+        logger.info(
+            "Integrating %d peaks over %d pixels...", n_peak, frame_indices.shape[0]
+        )
+        # threaded over frames, with a progress bar per alphatims.utils.set_progress_callback
+        integrate_peaks(
+            frame_indices,
+            self.data.push_indptr,
+            self.data.tof_indices,
+            self.data.intensity_values,
+            self.data.scan_max_index,
+            tof_lows,
+            tof_highs,
+            covered_scans,
+            scan_indptr,
+            scan_peaks,
+            frame_rows,
+            values,
+        )
+
         intensity_array = pd.DataFrame(
-            None,
-            index=frame_indices,
-            columns=np.arange(1, n_peak + 1),
-        )  # (n_pixel, n_peak)
-        intensity_array.index.name = "Pixel index"
-        intensity_array.columns.name = "Feature index"
-        for i in tqdm(range(n_peak)):
-            tof_min, tof_max, scan_min, scan_max = peak_extents.iloc[i][
-                ["tof_indices", "scan_indices"]
-            ].astype(int)
-            indices = self.data[
-                :, scan_min : (scan_max + 1), 0, tof_min : (tof_max + 1), "raw"
-            ]  # all data points of a peak
-            intensity_array[i + 1] = self.data.bin_intensities(indices, axis=["rt_values"])[
-                frame_indices
-            ]  # JIT function
+            values,
+            index=pd.Index(frame_indices, name="Pixel index"),
+            columns=pd.Index(np.arange(1, n_peak + 1), name="Feature index"),
+        )
         return intensity_array
 
     def process(
@@ -243,7 +359,7 @@ class MSIDataset:
         sampling_ratio=0.1,
         frequency_threshold=0.05,
         intensity_threshold=None,
-        roi=None,  # what if there are multiple ROIs?
+        roi=None,  # key into self.rois, e.g. an auto-loaded region "r0"
         visualize=False,
         ccs_calibration=True,
         **kwargs,
@@ -264,7 +380,7 @@ class MSIDataset:
         else:
             frame_indices = np.arange(1, self.data.frame_max_index)
 
-        print("Computing mean spectrum...")
+        logger.info("Computing mean spectrum...")
         mean_spec = self.mean_spectrum(
             sampling_ratio=sampling_ratio,
             frequency_threshold=frequency_threshold,
@@ -507,14 +623,14 @@ class Frame:
 
         graph = CoordsGraph(coordinates=coords, tolerance=tolerance, metric=metric)
 
-        print("Traversing graph...")
+        logger.info("Traversing graph...")
         group_labels = graph.group_nodes(count_threshold=count_threshold)  # ndarray of (k,)
         # filter off intensities with group label=0
         intensity_groups = self.data[group_labels > 0].groupby(
             group_labels[group_labels > 0], group_keys=True
         )  # filter, then group
 
-        print("Finding local maxima...")
+        logger.info("Finding local maxima...")
         raw_apexes = []
         peak_labels = np.zeros_like(group_labels)
         current_group = 1
@@ -569,7 +685,7 @@ class Frame:
         peak_groups = self.data[peak_labels > 0].groupby(
             peak_labels[peak_labels > 0], group_keys=True
         )
-        print("Summarizing...")
+        logger.info("Summarizing...")
         # intensity-weighted mz and mob
         peak_list = peak_groups.apply(
             lambda df: df[["mz_values", "mobility_values"]].apply(
