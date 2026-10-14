@@ -1,8 +1,46 @@
-cff-version: 1.0.2
-message: "If you use this software, please cite it as below."
+cff-version: 1.2.0
+message: "If you use this software, please cite the article below"
+type: software
 title: "TIMSImaging"
+abstract: "An open and interoperable workflow for trapped ion mobility mass spectrometry imaging data processing and visualization."
+version: 0.1.0
+date-released: "2026-08-25"
+license: MIT
+repository-code: "https://github.com/YinyueZhu/TIMSImaging"
+url: "https://github.com/YinyueZhu/TIMSImaging"
+
 authors:
-  - name: "Yinyue Zhu"
-version: 0.0.1-dev
-doi:
-url: "https://github.com/Vitek-Lab/https://github.com/YinyueZhu/TIMSImaging"
+  - family-names: Zhu
+    given-names: Yinyue
+    email: zhu.yiny@northeastern.edu
+    affiliation: "Northeastern University"
+preferred-citation:
+  type: article
+  title: "TIMSImaging: an open and interoperable workflow for trapped ion mobility mass spectrometry imaging data processing and visualization"
+  journal: "Bioinformatics"
+  volume: 42
+  issue: 9
+  year: 2026
+  month: 9
+  doi: "10.1093/bioinformatics/btag624"
+  authors:
+  - family-names: Zhu
+    given-names: Yinyue
+    email: zhu.yiny@northeastern.edu
+    affiliation: "Northeastern University"
+    orcid: "https://orcid.org/0009-0007-1468-6065"
+  - family-names: Bemis
+    given-names: Kylie Ariel
+  - family-names: Lakkimsetty
+    given-names: Sai Srikanth
+  - family-names: Li
+    given-names: Mujia Jenny
+  - family-names: Meyer
+    given-names: Larissa Chiara
+  - family-names: Weber-Steinhilber
+    given-names: Andreas
+  - family-names: Föll
+    given-names: Melanie Christine
+  - family-names: Vitek
+    given-names: Olga
+
