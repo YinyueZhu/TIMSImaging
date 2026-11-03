@@ -716,6 +716,345 @@ class Frame:
             results["peak_apex"] = apex_list
         return results
 
+    def extract_isotope_patterns(
+        self,
+        *,
+        polarity: int,
+        peak_ids=None,
+        peak_pick_result=None,
+        peak_pick_kwargs=None,
+        mass_tolerance_ppm: float = 5.0,
+        mass_tolerance_da: float = 0.001,
+        mobility_apex_tolerance: int = 3,
+        max_isotope_order: int = 5,
+    ) -> Dict:
+        """Group picked peaks into provisional, singly charged isotope patterns.
+
+        Partners must satisfy a CHNOPSClBr isotope mass-shift interval and
+        have a mobility apex within ``mobility_apex_tolerance`` scans of
+        the precursor apex. The apex is the scan with the greatest summed
+        labeled-point intensity; ties use the smallest scan index. Trace
+        shapes are not compared and unpicked signal is never recovered.
+
+        Parameters
+        ----------
+        polarity : {1, -1}
+            Required ion polarity; also the assumed charge. No adduct is
+            inferred.
+        peak_ids : iterable of int, optional
+            Return patterns containing these original peak IDs. Discovery
+            and ambiguity checks still use all picked peaks.
+        peak_pick_result : dict, optional
+            Results of ``self.peakPick(return_labels=True)`` for the same
+            frame, including ``peak_list`` and positional ``peak_labels``.
+            Labels and weighted summaries are validated against this frame.
+        peak_pick_kwargs : dict, optional
+            Arguments forwarded to ``peakPick`` when results are not supplied.
+            Picking uses a temporary copy with a reset row index. Labels and
+            extents are requested internally; the input frame is unchanged.
+        mass_tolerance_ppm, mass_tolerance_da : float
+            Nonnegative measurement tolerances. Each isotope interval is
+            expanded by max(absolute tolerance, upper expected m/z * ppm / 1e6).
+        mobility_apex_tolerance : int
+            Maximum absolute scan-index difference, inclusive (default 3).
+        max_isotope_order : int
+            Highest nominal isotope order to search, inclusive (default 5).
+
+        Returns
+        -------
+        dict
+            ``patterns``: one row per retained precursor hypothesis, with
+            precursor m/z, charge, apex, number of observed isotope orders
+            (including M0), tuple-valued ``flags``, and ``sirius_ready``.
+            ``isotope_peaks``: one row per candidate and isotope order, with
+            original ``peak_id``, measured centroid m/z, integrated intensity,
+            relative intensity (largest candidate = 1), and signed apex delta.
+            Multiple rows at the same order are competing alternatives.
+            ``seed_mapping``: peak-to-pattern relationships, with precursor or
+            isotope ``role`` and matched, unmatched, or ambiguous ``status``.
+            ``settings``: parameters and the derived mass-shift intervals.
+
+        Notes
+        -----
+        Mass-shift bounds use combinations of natural isotopes, without a
+        molecular formula or abundance model. They are candidate windows,
+        not evidence of chemical identity. Suffix hypotheses are collapsed
+        only when their assignments agree unambiguously with a lower-mass
+        parent. Shared candidates and competing partners remain flagged.
+
+        A ready pattern has M0 and at least one higher isotope, no internal
+        gap, no ambiguity, and no detected acquisition-boundary truncation.
+        Boundary checks use the supplied domains, not observed signal limits;
+        missing domains produce ``unknown_acquisition_bounds`` and prevent
+        readiness. ``isotope_count`` counts observed orders, not alternatives.
+        M0 remains provisional, and absent peaks are never fabricated. Filtering
+        during mean-spectrum construction or peak picking can remove isotopes.
+
+        This method returns tables only; it does not export or run SIRIUS.
+
+        Examples
+        --------
+        >>> result = mean_frame.extract_isotope_patterns(polarity=1)
+        >>> ready = result["patterns"].query("sirius_ready")
+        >>> ms1 = result["isotope_peaks"].query("pattern_id == @ready.pattern_id.iloc[0]")
+        >>> ms1 = ms1[["mz_values", "total_intensity"]].to_numpy()
+        """
+        from copy import copy
+        from numbers import Integral, Real
+        from pyteomics.mass import nist_mass
+
+        if isinstance(polarity, (bool, np.bool_)) or polarity not in (-1, 1):
+            raise ValueError("polarity must be +1 or -1")
+        for name, value in (
+            ("mass_tolerance_ppm", mass_tolerance_ppm),
+            ("mass_tolerance_da", mass_tolerance_da),
+        ):
+            if (isinstance(value, (bool, np.bool_)) or not isinstance(value, Real)
+                    or not np.isfinite(value) or value < 0):
+                raise ValueError(f"{name} must be a finite nonnegative number")
+        for name, value, minimum in (
+            ("mobility_apex_tolerance", mobility_apex_tolerance, 0),
+            ("max_isotope_order", max_isotope_order, 1),
+        ):
+            if (isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral)
+                    or value < minimum):
+                raise ValueError(f"{name} must be an integer >= {minimum}")
+        if peak_pick_result is not None and peak_pick_kwargs is not None:
+            raise ValueError("Supply peak_pick_result or peak_pick_kwargs, not both")
+        selected = None
+        if peak_ids is not None:
+            selected = set()
+            for peak_id in peak_ids:
+                if (isinstance(peak_id, (bool, np.bool_))
+                        or not isinstance(peak_id, Integral) or peak_id <= 0):
+                    raise ValueError("peak_ids must contain positive integer peak IDs")
+                selected.add(int(peak_id))
+
+        # Dynamic programming bounds all combinations for each nominal order.
+        # This includes M+2 sulfur/halogen shifts, not just n * 13C spacing.
+        shifts = []
+        for element in ("C", "H", "N", "O", "P", "S", "Cl", "Br"):
+            natural = [(a, mass) for a, (mass, abundance) in nist_mass[element].items()
+                       if a > 0 and abundance > 0]
+            light_a, light_mass = min(natural)
+            shifts.extend((a - light_a, mass - light_mass)
+                          for a, mass in natural if a > light_a)
+        lower = np.full(max_isotope_order + 1, np.inf)
+        upper = np.full(max_isotope_order + 1, -np.inf)
+        lower[0] = upper[0] = 0.0
+        for order in range(1, max_isotope_order + 1):
+            for step, shift in shifts:
+                if step <= order:
+                    lower[order] = min(lower[order], lower[order - step] + shift)
+                    upper[order] = max(upper[order], upper[order - step] + shift)
+
+        settings = {
+            "polarity": int(polarity),
+            "mass_tolerance_ppm": float(mass_tolerance_ppm),
+            "mass_tolerance_da": float(mass_tolerance_da),
+            "mobility_apex_tolerance": int(mobility_apex_tolerance),
+            "max_isotope_order": int(max_isotope_order),
+            "elements": "CHNOPSClBr",
+            "isotope_shift_intervals": list(zip(lower[1:].tolist(), upper[1:].tolist())),
+            "peak_ids": None if selected is None else sorted(selected),
+        }
+        pattern_columns = [
+            "pattern_id", "precursor_peak_id", "precursor_mz", "apex_scan",
+            "apex_mobility", "charge", "isotope_count", "flags", "sirius_ready",
+        ]
+        isotope_columns = [
+            "pattern_id", "isotope_index", "peak_id", "mz_values",
+            "total_intensity", "relative_intensity", "apex_scan",
+            "apex_mobility", "apex_scan_delta",
+        ]
+        mapping_columns = ["peak_id", "pattern_id", "role", "status"]
+
+        def make_result(pattern_rows=(), isotope_rows=(), mapping_rows=()):
+            patterns = pd.DataFrame(pattern_rows, columns=pattern_columns)
+            patterns["sirius_ready"] = patterns["sirius_ready"].astype(bool)
+            return {
+                "patterns": patterns,
+                "isotope_peaks": pd.DataFrame(isotope_rows, columns=isotope_columns),
+                "seed_mapping": pd.DataFrame(mapping_rows, columns=mapping_columns),
+                "settings": settings,
+            }
+
+        points = self.data.reset_index(drop=True).copy()
+        required = {"scan_indices", "tof_indices", "mz_values",
+                    "mobility_values", "intensity_values"}
+        if not required.issubset(points.columns):
+            raise ValueError("Isotope extraction requires indexed Frame data")
+        values = points[list(required)].to_numpy(dtype=float)
+        if not np.isfinite(values).all():
+            raise ValueError("Frame coordinates and intensities must be finite")
+        if (points["mz_values"] <= 0).any() or (points["intensity_values"] < 0).any():
+            raise ValueError("Frame m/z must be positive and intensities nonnegative")
+        for column in ("scan_indices", "tof_indices"):
+            indices = points[column].to_numpy()
+            if (indices < 0).any() or (indices != np.floor(indices)).any():
+                raise ValueError(f"{column} must contain nonnegative integer indices")
+        if peak_pick_result is None:
+            if points.empty:
+                if selected:
+                    raise ValueError("peak_ids are absent from the empty frame")
+                return make_result()
+            temporary_frame = copy(self)
+            temporary_frame.data = points
+            kwargs = dict(peak_pick_kwargs or {})
+            kwargs.update(return_labels=True, return_extents=True, return_apex=False)
+            peak_pick_result = temporary_frame.peakPick(**kwargs)
+        if not {"peak_list", "peak_labels"}.issubset(peak_pick_result):
+            raise ValueError("peak_pick_result requires peak_list and peak_labels")
+        peaks = peak_pick_result["peak_list"].copy()
+        labels = np.asarray(peak_pick_result["peak_labels"])
+        if (labels.shape != (len(points),) or not np.issubdtype(labels.dtype, np.integer)
+                or (labels < 0).any()):
+            raise ValueError("peak_labels must be nonnegative integers aligned to Frame rows")
+        if (not peaks.index.is_unique
+                or any(isinstance(i, (bool, np.bool_)) or not isinstance(i, Integral) or i <= 0
+                       for i in peaks.index)
+                or set(peaks.index) != set(labels[labels > 0])):
+            raise ValueError("peak_list IDs must uniquely match the positive peak_labels")
+        if selected is not None and not selected.issubset(peaks.index):
+            raise ValueError(f"Unknown peak_ids: {sorted(selected - set(peaks.index))}")
+        if peaks.empty:
+            return make_result()
+        summary_columns = ["mz_values", "mobility_values", "total_intensity"]
+        if not set(summary_columns).issubset(peaks.columns):
+            raise ValueError("peak_list requires m/z, mobility, and total_intensity summaries")
+        if (not np.isfinite(peaks[summary_columns].to_numpy(dtype=float)).all()
+                or (peaks["total_intensity"] <= 0).any()):
+            raise ValueError("Picked peaks must have finite summaries and positive intensities")
+
+        # Recompute summaries to reject stale or misaligned caller-supplied labels.
+        # No unlabeled point can become an isotope candidate.
+        points["_peak_id"] = labels
+        apex_scans, apex_mobilities, scan_bounds = {}, {}, {}
+        for peak_id, group in points.loc[labels > 0].groupby("_peak_id", sort=True):
+            weights = group["intensity_values"].to_numpy()
+            total = weights.sum()
+            if total <= 0:
+                raise ValueError(f"Peak {peak_id} has no positive labeled intensity")
+            measured = [np.average(group[c], weights=weights)
+                        for c in ("mz_values", "mobility_values")] + [total]
+            if not np.allclose(peaks.loc[peak_id, summary_columns].to_numpy(dtype=float),
+                               measured, rtol=1e-7, atol=1e-10):
+                raise ValueError(f"Peak {peak_id} summaries do not match Frame labels")
+            scans = group.groupby("scan_indices", sort=True)["intensity_values"].sum()
+            apex = int(scans.idxmax())
+            apex_points = group.loc[group["scan_indices"] == apex]
+            apex_scans[peak_id] = apex
+            apex_mobilities[peak_id] = float(np.average(
+                apex_points["mobility_values"], weights=apex_points["intensity_values"]
+            ))
+            scan_bounds[peak_id] = (int(scans.index.min()), int(scans.index.max()))
+
+        # Sort by physical mass, retaining the original IDs even after peakPick(sort=True).
+        peaks = peaks.assign(_id=peaks.index).sort_values(["mz_values", "_id"])
+        ids = peaks.index.to_numpy()
+        masses = peaks["mz_values"].to_numpy(dtype=float)
+        intensities = peaks["total_intensity"].to_numpy(dtype=float)
+        apex = np.array([apex_scans[i] for i in ids], dtype=np.int64)
+        hypotheses, owners = [], [[] for _ in ids]
+        for root, mass in enumerate(masses):
+            assignments = {root: 0}
+            for order in range(1, max_isotope_order + 1):
+                tolerance = max(mass_tolerance_da,
+                                (mass + upper[order]) * mass_tolerance_ppm * 1e-6)
+                left = np.searchsorted(masses, mass + lower[order] - tolerance, side="left")
+                right = np.searchsorted(masses, mass + upper[order] + tolerance, side="right")
+                for candidate in range(max(root + 1, left), right):
+                    if abs(int(apex[candidate]) - int(apex[root])) <= mobility_apex_tolerance:
+                        # A single peak cannot have two isotope orders under these settings.
+                        if candidate in assignments:
+                            raise ValueError("Mass tolerances produce overlapping isotope orders")
+                        assignments[candidate] = order
+            hypotheses.append(assignments)
+            for candidate in assignments:
+                owners[candidate].append(root)
+
+        # Drop singletons already represented elsewhere and exact unambiguous suffixes.
+        retained = []
+        for root, assignments in enumerate(hypotheses):
+            redundant = False
+            for parent in owners[root]:
+                if parent >= root:
+                    continue
+                parent_assignments = hypotheses[parent]
+                if len(assignments) == 1:
+                    redundant = True
+                    break
+                if (len(set(assignments.values())) != len(assignments)
+                        or len(set(parent_assignments.values())) != len(parent_assignments)):
+                    continue
+                offset = parent_assignments[root]
+                parent_tail = {p: k - offset for p, k in parent_assignments.items()
+                               if k >= offset}
+                if assignments == parent_tail:
+                    redundant = True
+                    break
+            if not redundant:
+                retained.append(root)
+        active_owners = [[] for _ in ids]
+        for root in retained:
+            for candidate in hypotheses[root]:
+                active_owners[candidate].append(root)
+
+        mz_domain = None if self.mz_domain is None else np.asarray(self.mz_domain)
+        mobility_domain = (None if self.mobility_domain is None
+                           else np.asarray(self.mobility_domain))
+        known_bounds = (mz_domain is not None and mobility_domain is not None
+                        and mz_domain.size > 0 and mobility_domain.size > 0
+                        and np.isfinite(mz_domain).all() and np.isfinite(mobility_domain).all())
+        pattern_rows, isotope_rows, mapping_rows = [], [], []
+        for root in retained:
+            assignments = hypotheses[root]
+            if selected is not None and not any(int(ids[p]) in selected for p in assignments):
+                continue
+            # The precursor's stable peak ID doubles as the pattern ID.
+            pattern_id = int(ids[root])
+            orders = set(assignments.values())
+            flags = []
+            if len(orders) == 1:
+                flags.append("singleton")
+            if orders != set(range(max(orders) + 1)):
+                flags.append("missing_isotope")
+            competing = len(orders) != len(assignments)
+            shared = any(len(active_owners[p]) > 1 for p in assignments)
+            if competing:
+                flags.append("competing_partners")
+            if shared:
+                flags.append("shared_peak")
+            if not known_bounds:
+                flags.append("unknown_acquisition_bounds")
+            else:
+                tolerance = max(mass_tolerance_da,
+                                (masses[root] + upper[-1]) * mass_tolerance_ppm * 1e-6)
+                if (masses[root] - tolerance <= mz_domain.min()
+                        or masses[root] + upper[-1] + tolerance >= mz_domain.max()
+                        or any(scan_bounds[ids[p]][0] <= 0
+                               or scan_bounds[ids[p]][1] >= len(mobility_domain) - 1
+                               for p in assignments)):
+                    flags.append("acquisition_boundary")
+            pattern_rows.append([
+                pattern_id, pattern_id, masses[root], int(apex[root]),
+                apex_mobilities[ids[root]], int(polarity), len(orders), tuple(flags), not flags,
+            ])
+            largest = max(intensities[p] for p in assignments)
+            for candidate, order in sorted(assignments.items(), key=lambda item: (item[1], item[0])):
+                peak_id = int(ids[candidate])
+                isotope_rows.append([
+                    pattern_id, order, peak_id, masses[candidate], intensities[candidate],
+                    intensities[candidate] / largest, int(apex[candidate]),
+                    apex_mobilities[peak_id], int(apex[candidate]) - int(apex[root]),
+                ])
+                status = ("ambiguous" if competing or shared else
+                          "unmatched" if len(orders) == 1 else "matched")
+                mapping_rows.append([
+                    peak_id, pattern_id, "precursor" if order == 0 else "isotope", status,
+                ])
+        return make_result(pattern_rows, isotope_rows, mapping_rows)
+
     # plotting methods
     def spectrum(self, plotting=True):
         data1d = self.data.groupby("mz_values")["intensity_values"].sum().reset_index()
